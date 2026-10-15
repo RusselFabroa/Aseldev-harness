@@ -29,6 +29,27 @@ export interface ConfigurableProviderView {
    * surface must treat absence as "unknown", not as "shipped".
    */
   declared?: boolean
+  /**
+   * Whether the provider authenticates by an account sign-in driven through
+   * `llm.signIn` instead of an API key. Absent means it takes a key, or nothing.
+   */
+  signIn?: boolean
+}
+
+/** Wire view of one provider's sign-in state. Never carries a token. */
+export interface ProviderSignInView {
+  /** `pending` while a started sign-in waits for the user to finish in the browser. */
+  state: 'signed-out' | 'pending' | 'signed-in' | 'error'
+  /** Page the user opens to sign in (`pending`). */
+  authUrl?: string
+  /** Code to type on {@link verificationUri} for a device-code flow (`pending`). */
+  userCode?: string
+  /** Page that accepts {@link userCode} (`pending`). */
+  verificationUri?: string
+  /** Epoch milliseconds the current access token expires; the host refreshes it (`signed-in`). */
+  expiresAt?: number
+  /** Why the last attempt failed (`error`). */
+  error?: string
 }
 
 /** Llm-domain unary methods (the map keys llm.* of RpcMethodMap). */
@@ -74,6 +95,20 @@ export interface LlmApi {
     }>,
     signal?: AbortSignal,
   ): Promise<RpcResponse<{ models: DiscoveredModelView[] }>>
+
+  /**
+   * Drive the account sign-in of one provider whose directory entry carries
+   * `signIn`: read its state, start a browser login (the reply carries the
+   * page to open), hand it the redirect URL the user pasted, cancel it, or
+   * sign out. Tokens stay on the host; the reply never carries one.
+   */
+  signIn(
+    request: RpcRequest<{
+      provider: string
+      action: 'status' | 'start' | 'submit-code' | 'cancel' | 'sign-out'
+      code?: string
+    }>,
+  ): Promise<RpcResponse<ProviderSignInView>>
 }
 
 /** Wire view of one model an interrogated endpoint advertises. */

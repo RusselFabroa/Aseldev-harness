@@ -11,6 +11,7 @@ import { SlotRegistry } from './slots.ts'
 import { SessionRuntime } from './sessions/service.ts'
 import type { SessionListState } from './sessions/service.ts'
 import { WorkspaceRuntime } from './workspaces/service.ts'
+import { BrainRuntime } from './brain/service.ts'
 import type { ConversationSnapshot } from './sessions/conversation.ts'
 import type { UseProjection } from './sessions/projection-store.ts'
 import { ConversationEventRegistry } from './conversation/event-registry.ts'
@@ -63,8 +64,13 @@ export type { SessionListPhase, SessionSearchResultItem, SubagentCatalogSnapshot
 export type { SubagentAddress, JobView } from '@deepseek-ai/dsh-client-connection/client'
 export type { WorkspaceListPhase } from './workspaces/manager.ts'
 export type { WorkspaceListState } from './workspaces/service.ts'
+export { BrainRuntime } from './brain/service.ts'
+export type { BrainListState, IBrain } from './brain/service.ts'
 export type {
   DirectoryEntry, DirectoryListing, WorkspaceId, WorkspaceView,
+} from '@deepseek-ai/dsh-client-connection/client'
+export type {
+  BrainFolderNode, BrainNoteNode, BrainSearchMatch, BrainStatus, BrainTreeNode,
 } from '@deepseek-ai/dsh-client-connection/client'
 // Runtime owns the snapshot store; web-react only binds it to React.
 export { createSnapshotStore, defineStore, shallowEqual } from './contract/store.ts'
@@ -176,6 +182,8 @@ declare module '@deepseek-ai/cordis' {
     sessions: import('./contract/sessions.ts').ISessions
     /** The outward face only; the concrete service stays inside the runtime. */
     workspaces: import('./contract/workspaces.ts').IWorkspaces
+    /** The outward face only; the concrete service stays inside the runtime. */
+    brain: import('./brain/service.ts').IBrain
   }
 }
 
@@ -197,6 +205,7 @@ export function apply(ctx: Context): void {
     identity: candidate => sessions.scopeOf(candidate),
   })
   const workspaces = new WorkspaceRuntime(ctx, connection.api, sessions)
+  new BrainRuntime(ctx, connection.api)
   ctx.effect(
     () => workspaces.startInitialSelection(),
     'runtime: initial Workspace selection',

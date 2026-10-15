@@ -40,6 +40,7 @@ import SkillRegistry from '@deepseek-ai/dsh-skill'
 import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolAskUser from '@deepseek-ai/dsh-tool-ask-user'
+import * as ToolBrain from '@deepseek-ai/dsh-tool-brain'
 import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
 import * as ToolPwsh from '@deepseek-ai/dsh-tool-pwsh'
 import * as ToolBashPersistent from '@deepseek-ai/dsh-tool-bash-persistent'
@@ -194,6 +195,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'ask_user_question pauses the tool call until the active UI provider returns a human answer.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-brain',
+    dir: 'tool-brain',
+    source: 'packages/knowledge/tool-brain/src/index.ts',
+    requires: ['ctx.tools', 'ctx.brain (execution time, optional)'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolBrain)
+    },
+    note:
+      'brain_search/brain_read read the deployment\'s knowledge vault through ctx.brain. The schema harvest mounts no provider; an unconfigured vault answers brain_search with configured:false and fails brain_read with configuration guidance.',
   },
   {
     pkg: '@deepseek-ai/dsh-tools',

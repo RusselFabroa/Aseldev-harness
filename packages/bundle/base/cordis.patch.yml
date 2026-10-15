@@ -369,6 +369,17 @@
       config:
         allowParallelInProgress: true
 
+    # Read-only knowledge vault (`ctx.brain`) and its model-facing consumer.
+    # The provider ships unconfigured: a deployment points it at a vault
+    # through the persisted user setting ($DSH_HOME/settings.yaml `brain:`
+    # section, edited under Settings → Plugins → Brain on Web), and both the
+    # browser UI and these tools follow it live.
+    - id: brain-local
+      name: '@deepseek-ai/dsh-brain-local'
+
+    - id: tool-brain
+      name: '@deepseek-ai/dsh-tool-brain'
+
     # Persisted same-session goals reach the model and the slash menu here; the
     # domain, driver, and `/goal` command are above.
     - id: tool-goal

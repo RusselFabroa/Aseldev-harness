@@ -30,4 +30,4 @@ Ship the smallest tool that loads an image into the next request's context, enti
 - A text-only route refuses instead of degrading: no placeholder projection means no delegated-viewing story here — that is deliberately the next PR (subagent image readback rebuilt on the current subagent seams).
 - The route gate races a concurrent model switch; the Web host's image-aware switch guard covers its surface, and other front doors own their equivalent. Recorded as a tool-fs Known Limitation.
 - Repeated image results accumulate request-token cost until compaction; content addressing deduplicates bytes only.
-- The tool-result card renders the durable reference, not pixels; inline preview is deferred to the UI packages.
+- The Tool UI renders a session-authorized inline thumbnail from the durable result reference; the image also remains in the model's context.

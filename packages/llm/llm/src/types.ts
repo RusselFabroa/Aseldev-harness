@@ -184,6 +184,42 @@ export interface LlmConfigurableProvider {
    * from outside.
    */
   declared?: boolean
+  /**
+   * Whether this provider authenticates through an interactive sign-in the
+   * owning adapter runs (see `LlmRuntime.registerProviderSignIn`) instead of
+   * an API key. Absent means the provider takes a key, or nothing at all.
+   */
+  signIn?: boolean
+}
+
+/** What a configuration surface can ask of one provider's sign-in. */
+export type LlmProviderSignInAction = 'status' | 'start' | 'submit-code' | 'cancel' | 'sign-out'
+
+/** One request to a provider's sign-in handler. */
+export interface LlmProviderSignInRequest {
+  /** The step to take; `status` only reads. */
+  action: LlmProviderSignInAction
+  /**
+   * The authorization code, or the whole redirect URL, the user pasted when
+   * the automatic browser callback could not reach the host (`submit-code`).
+   */
+  code?: string
+}
+
+/** Where one provider's sign-in stands, as a configuration surface shows it. */
+export interface LlmProviderSignInState {
+  /** `pending` while a started sign-in waits for the user to finish in the browser. */
+  state: 'signed-out' | 'pending' | 'signed-in' | 'error'
+  /** Page the user opens to sign in (`pending`). */
+  authUrl?: string
+  /** Code the user types on {@link verificationUri} for a device-code flow (`pending`). */
+  userCode?: string
+  /** Page that accepts {@link userCode} (`pending`). */
+  verificationUri?: string
+  /** Epoch milliseconds the current access token expires; refreshed automatically (`signed-in`). */
+  expiresAt?: number
+  /** Why the last attempt failed (`error`), never containing a secret. */
+  error?: string
 }
 
 /**

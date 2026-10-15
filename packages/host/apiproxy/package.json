@@ -50,6 +50,7 @@
     "@deepseek-ai/dsh-agent-default-model": "workspace:^",
     "@deepseek-ai/dsh-api-remotes": "workspace:^",
     "@deepseek-ai/dsh-brand": "workspace:^",
+    "@deepseek-ai/dsh-brain": "workspace:^",
     "@deepseek-ai/dsh-commands": "workspace:^",
     "@deepseek-ai/dsh-credentials": "workspace:^",
     "@deepseek-ai/dsh-goal": "workspace:^",
@@ -83,6 +84,7 @@
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent-presets": "workspace:^",
+    "@deepseek-ai/dsh-brain": "workspace:^",
     "@deepseek-ai/dsh-cordis-host-runner": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-storage": "workspace:^",

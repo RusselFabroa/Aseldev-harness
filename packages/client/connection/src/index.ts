@@ -116,6 +116,9 @@ const PRIVILEGED_METHODS = new Set([
   'credentials.set',
   'credentials.unset',
   'llm.discoverModels',
+  // Starts a login on the host, keeps its tokens, and accepts a pasted
+  // authorization code: the same secret-store plane as `credentials.set`.
+  'llm.signIn',
 ])
 
 /**

@@ -21,7 +21,7 @@ import type { CredentialRef } from '@deepseek-ai/dsh-credentials'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
-import { MODALITIES, resolveRouteModels, SUPPORTED_THINKING_FORMATS, THINKING_LEVELS } from './catalog.ts'
+import { catalogSignIn, MODALITIES, resolveRouteModels, SUPPORTED_THINKING_FORMATS, THINKING_LEVELS } from './catalog.ts'
 import type {
   PiAiCompatProfile,
   PiAiModality,
@@ -364,7 +364,9 @@ export function resolveProfiles(
         ...source.api === undefined ? {} : { api: source.api },
         ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
         models: catalog.models,
-        namesCredential: apiKeyEnv !== undefined,
+        // A sign-in route hands each request its access token as the api key,
+        // so it needs the harness key method exactly like a named credential.
+        namesCredential: apiKeyEnv !== undefined || catalogSignIn(provider) !== undefined,
       }),
     })
   }

@@ -33,6 +33,7 @@ import {
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
+import { SignInPanel } from './SignInPanel.tsx'
 import { deriveKeyRef, messageOf, protocolChoices } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
@@ -59,6 +60,12 @@ export interface ProviderEditorProps {
    * override every one of them and the card does not offer it.
    */
   declared?: boolean
+  /**
+   * Whether the provider authenticates by an account sign-in the host runs
+   * (directory `signIn`): the card shows the sign-in field instead of the
+   * API-key field, and Apply stores the profile without a credential reference.
+   */
+  signIn?: boolean
   /** The owning namespace view (schema, layers, secrets). */
   namespace: SettingsNamespaceView
   /** Path from the section root to this provider's profile. */
@@ -359,23 +366,25 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     }
     return (
       <>
-        <div className={styles['field']}>
-          <span className={styles['fieldLabel']}>{t('keyInput')}</span>
-          <input
-            className={styles['input']}
-            type="password"
-            autoComplete="off"
-            value={keyDraft}
-            placeholder={keyPlaceholder}
-            aria-label={t('keyInput')}
-            aria-invalid={shownKeyFailure !== undefined}
-            required={props.credentialRequired === true}
-            autoFocus={props.autoFocusCredential === true}
-            disabled={disabled || keyLocked}
-            onChange={(event) => { setKeyDraft(event.target.value) }}
-          />
-          {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
-        </div>
+        {family === 'pi-ai' && props.signIn === true
+          ? <SignInPanel provider={props.provider} displayName={props.displayName} api={api} t={t} disabled={disabled} />
+          : <div className={styles['field']}>
+            <span className={styles['fieldLabel']}>{t('keyInput')}</span>
+            <input
+              className={styles['input']}
+              type="password"
+              autoComplete="off"
+              value={keyDraft}
+              placeholder={keyPlaceholder}
+              aria-label={t('keyInput')}
+              aria-invalid={shownKeyFailure !== undefined}
+              required={props.credentialRequired === true}
+              autoFocus={props.autoFocusCredential === true}
+              disabled={disabled || keyLocked}
+              onChange={(event) => { setKeyDraft(event.target.value) }}
+            />
+            {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
+          </div>}
         {props.credentialOnly === true ? null : <details className={styles['customized']}>
           <summary className={styles['customizedSummary']}>{t('customized')}</summary>
           <div className={styles['customizedBody']}>

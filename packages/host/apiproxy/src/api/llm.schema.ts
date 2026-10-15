@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
-import type { ConfigurableProviderView, DiscoveredModelView } from './llm.ts'
+import type { ConfigurableProviderView, DiscoveredModelView, ProviderSignInView } from './llm.ts'
 import { modelCatalogFailureSchema, modelProviderGroupSchema } from './sessions.schema.ts'
 
 /** ConfigurableProviderView row of llm.providers. */
@@ -17,6 +17,7 @@ export const configurableProviderViewSchema = z.object({
   settingsPath: z.array(z.string()),
   active: z.boolean(),
   declared: z.boolean().optional(),
+  signIn: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<ConfigurableProviderView>>
 
 /** llm.providers request payload. */
@@ -62,3 +63,22 @@ export const llmDiscoverModelsRequestSchema = z.object({
 export const llmDiscoverModelsValueSchema = z.object({
   models: z.array(discoveredModelViewSchema),
 }) satisfies z.ZodType<Wire<ResponseValue<'llm.discoverModels'>>>
+
+/** llm.signIn request payload. */
+export const llmSignInRequestSchema = z.object({
+  provider: z.string().min(1),
+  action: z.enum(['status', 'start', 'submit-code', 'cancel', 'sign-out']),
+  // Write-only: an authorization code or redirect URL handed to the host's
+  // login flow once, never stored or returned.
+  code: z.string().min(1).optional(),
+}) satisfies z.ZodType<Wire<RequestPayload<'llm.signIn'>>>
+
+/** llm.signIn response value. */
+export const llmSignInValueSchema = z.object({
+  state: z.enum(['signed-out', 'pending', 'signed-in', 'error']),
+  authUrl: z.string().min(1).optional(),
+  userCode: z.string().min(1).optional(),
+  verificationUri: z.string().min(1).optional(),
+  expiresAt: z.number().optional(),
+  error: z.string().optional(),
+}) satisfies z.ZodType<Wire<ProviderSignInView>>

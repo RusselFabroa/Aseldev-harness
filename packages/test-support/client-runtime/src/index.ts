@@ -32,6 +32,7 @@ import type {
 import { registerDomSnapshotSerializer } from './snapshot.ts'
 import { TestSessions } from './sessions.ts'
 import { TestWorkspaces } from './workspaces.ts'
+import { TestBrain } from './brain.ts'
 import type { Stabilizer } from './fixtures.ts'
 
 export { domSnapshotSerializer, registerDomSnapshotSerializer } from './snapshot.ts'
@@ -39,6 +40,7 @@ export { FixtureSession, TestSessions } from './sessions.ts'
 export { stubSettingsScope } from './settings-scope.ts'
 export type { StubSettingsScope } from './settings-scope.ts'
 export { TestWorkspaces } from './workspaces.ts'
+export { TestBrain } from './brain.ts'
 export { TestRemote } from './remote.ts'
 export { conversationSnapshot, workspaceListState } from './fixtures.ts'
 export type { SessionBehaviorOverrides, SessionFixture, Stabilizer } from './fixtures.ts'
@@ -181,6 +183,8 @@ export class SlotTestRuntime {
   readonly sessions: TestSessions
   /** Workspaces double (list observable, recorded intent actions). */
   readonly workspaces: TestWorkspaces
+  /** Brain double (list observable, recorded read/search actions). */
+  readonly brain: TestBrain
 
   private readonly stabilizer: Stabilizer = async (fn) => {
     await act(async () => { await fn() })
@@ -201,8 +205,10 @@ export class SlotTestRuntime {
     this.root = new TestRoot(slots, this.stabilizer)
     this.sessions = new TestSessions(this.stabilizer, ctx)
     this.workspaces = new TestWorkspaces(this.stabilizer)
+    this.brain = new TestBrain(this.stabilizer)
     ctx.provide('sessions', this.sessions)
     ctx.provide('workspaces', this.workspaces)
+    ctx.provide('brain', this.brain)
     // Capturing install: the production renderer does the rendering; the
     // wrapper only takes the host face for storeOf (no machinery copied).
     const renderer = createSlotRenderer()

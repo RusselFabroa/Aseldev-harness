@@ -2961,6 +2961,36 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       discoverModels: request => ok(request, {
         models: fixtureModelGroups().flatMap(group => group.models.map(model => ({ id: model.id, name: model.name }))),
       }),
+      // No account exists behind the fixture, so every provider reads as signed out.
+      signIn: request => ok(request, { state: 'signed-out' as const }),
+    },
+    brain: {
+      list: request => ok(request, {
+        status: { configured: true, path: `${FIXTURE_HOME}/Brain` },
+        tree: [
+          {
+            kind: 'folder', name: 'Area', path: 'Area',
+            children: [{ kind: 'note', name: 'alpha', path: 'Area/alpha.md' }],
+          },
+          { kind: 'note', name: 'index', path: 'index.md' },
+        ],
+      }),
+      search: request => ok(request, {
+        items: request.payload.query.trim() === ''
+          ? []
+          : [{ path: 'Area/alpha.md', title: 'alpha', snippet: 'alpha note body' }],
+      }),
+      read: (request) => {
+        if (request.payload.path === 'Area/alpha.md') {
+          return ok(request, { path: 'Area/alpha.md', title: 'alpha', content: '# Alpha\n\nalpha note body' })
+        }
+        if (request.payload.path === 'index.md') {
+          return ok(request, { path: 'index.md', title: 'index', content: '# Index\n\nwelcome' })
+        }
+        return err(request, {
+          code: 'brain-not-found', message: `note not found: ${request.payload.path}`, details: { path: request.payload.path },
+        })
+      },
     },
     respond(message: ClientResponse): Promise<RpcReceipt> {
       // Same routing discipline as the host: rpcId first, then the payload's
@@ -3129,6 +3159,10 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'llm.providers': return this.api.llm.providers(request)
       case 'llm.models': return this.api.llm.models(request)
       case 'llm.discoverModels': return this.api.llm.discoverModels(request, signal)
+      case 'llm.signIn': return this.api.llm.signIn(request)
+      case 'brain.list': return this.api.brain.list(request, signal)
+      case 'brain.search': return this.api.brain.search(request, signal)
+      case 'brain.read': return this.api.brain.read(request, signal)
     }
   }
 

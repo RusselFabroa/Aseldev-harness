@@ -16,6 +16,7 @@ This table connects model-visible tool names to the plugin package and service s
 | Tool package | Model-visible names | Requires | Writes / affects | Shipped aliases | Deployment note |
 | --- | --- | --- | --- | --- | --- |
 | `@deepseek-ai/dsh-tool-ask-user` | `ask_user_question` | `ctx.tools`, `ctx.userQuestions` | `tool/call`, `tool/result after a UI/provider answers the question` | - | ask_user_question pauses the tool call until the active UI provider returns a human answer. |
+| `@deepseek-ai/dsh-tool-brain` | `brain_read`, `brain_search` | `ctx.tools`, `ctx.brain (execution time, optional)` | `tool/call`, `tool/result` | - | brain_search/brain_read read the deployment's knowledge vault through ctx.brain. The schema harvest mounts no provider; an unconfigured vault answers brain_search with configured:false and fails brain_read with configuration guidance. |
 | `@deepseek-ai/dsh-tools` | `run_code` | `ctx.tools`, `ctx.codeRuntime (execution time)`, `ctx.systemPrompt` | `tool/call`, `one tool/code-dispatch-start + tool/code-dispatch pair per bridged sub-call`, `tool/result` | - | Owned by the tool registry as a reserved transport outside filterable capability layers under `mode: code` / `mode: both` (see the Code Mode Agent Note). Under `code` it is the registry's only wire contribution; the other visible capabilities are declared in a generated SDK section in the loaded runtime's language, and a program calls them through bindings scheduled under the native concurrency contract (submission-ordered starts and policy; concurrency-safe bodies overlap up to `maxParallelSubCalls`) that re-enter the complete guarded tool pipeline and link each nested execution to this outer result. |
 | `@deepseek-ai/dsh-plan-mode` | `exit_plan_mode` | `ctx.tools`, `ctx.systemPrompt`, `ctx.userQuestions (execution time, opportunistic)` | `tool/call`, `plan/mode inactive on an approved review`, `tool/result` | - | exit_plan_mode stays in the model-facing schema while planning is inactive so transitions add no tool-catalog churn on top of the plan-policy change. Its execute path rejects calls outside plan mode; in plan mode it presents the plan over the user-questions seam (approve / keep planning with feedback), and approval logs plan mode inactive at the step boundary. |
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The bash tool is the model-facing consumer of the bash executor seam. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled. |
@@ -113,6 +114,54 @@ Ask the user a concise question when you need confirmation, a choice, or missing
 Source: [`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts)
 
 ask_user_question pauses the tool call until the active UI provider returns a human answer.
+
+<a id="deepseek-aidsh-tool-brain"></a>
+
+## `@deepseek-ai/dsh-tool-brain`
+
+### `brain_read`
+
+Read one note from the user's personal knowledge vault by its vault-relative path (with the .md extension), as returned by brain_search. Returns the note's Markdown body.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Vault-relative note path including the .md extension, e.g. from a brain_search match."
+    }
+  },
+  "required": [
+    "path"
+  ]
+}
+```
+
+Source: [`packages/knowledge/tool-brain/src/index.ts`](../packages/knowledge/tool-brain/src/index.ts)
+
+### `brain_search`
+
+Search the user's personal knowledge vault of Markdown notes for a keyword. Case-insensitive full-text match over note titles and bodies with bounded results, each carrying the vault-relative path, the title, and a snippet. Pair with brain_read to load a full note.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "The keyword or phrase to search for."
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/knowledge/tool-brain/src/index.ts`](../packages/knowledge/tool-brain/src/index.ts)
+
+brain_search/brain_read read the deployment's knowledge vault through ctx.brain. The schema harvest mounts no provider; an unconfigured vault answers brain_search with configured:false and fails brain_read with configuration guidance.
 
 <a id="deepseek-aidsh-tools"></a>
 

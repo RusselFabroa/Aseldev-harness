@@ -249,3 +249,10 @@
   config:
     fetch: false
     searchTimeoutMs: 60000
+
+# Read-only lookup over the host-plane knowledge vault (`ctx.brain`). The
+# registry row provides nothing and reads the host service per call, so it
+# needs no realm; while no vault path is configured the tools answer with
+# guidance instead of errors.
+- id: tool-brain
+  name: '@deepseek-ai/dsh-tool-brain'

@@ -90,6 +90,9 @@
     - id: directory-picker
       name: '@deepseek-ai/dsh-host-directory-picker-auto'
 
+    # The shared brain-local provider row lives in dsh-base; loader entry ids
+    # are unique across the composed profile, so no Web-layer row exists here.
+
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
@@ -218,6 +221,19 @@
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
+
+    # Asel's Brain: the read-only knowledge-vault sidebar section.
+    - id: ui-brain
+      name: '@deepseek-ai/dsh-client-ui-brain'
+
+    # AselDev: Settings → Skills page for the aseldev-skills folder. Its file
+    # operations come from the aseldev skills-manager host plugin, inserted
+    # by the profile patch (aseldev-plugins/skills-manager/host.ts).
+    - id: ui-skills-manager
+      name: '@deepseek-ai/dsh-client-ui-skills-manager'
+    # AselDev: artifacts card, sidebar Artifacts button, viewer and library.
+    - id: ui-artifacts
+      name: '@deepseek-ai/dsh-client-ui-artifacts'
 
     # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
     # it (ui-commands), and the two reference sources (ui-skill / ui-subagent).
@@ -402,6 +418,11 @@
   disabled: true
 
 - id: tool-todo
+  disabled: true
+
+# The knowledge-vault consumer is a preset row like every other model-facing
+# capability; the host-plane brain-local row above stays mounted.
+- id: tool-brain
   disabled: true
 
 - id: tool-web

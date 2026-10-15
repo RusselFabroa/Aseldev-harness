@@ -19,6 +19,7 @@ import type {
   Model,
   ModelCost,
   ModelThinkingLevel,
+  OAuthAuth,
   OpenAICompletionsCompat,
   Provider,
   ThinkingLevelMap,
@@ -159,6 +160,37 @@ export function catalogProviderIds(): readonly string[] {
  */
 export function catalogProviderTakesApiKey(provider: string): boolean {
   return catalogProvider(provider)?.auth.apiKey !== undefined
+}
+
+/**
+ * Catalog providers this adapter signs in to on the user's behalf, with the
+ * name configuration surfaces show for them. Each authenticates through OAuth
+ * alone; the sign-in runs pi-ai's own login and refresh flow
+ * ([sign-in](./sign-in.ts)). A provider offering an api key as well is
+ * deliberately absent: its key is the supported path.
+ */
+const SIGN_IN_PROVIDERS: ReadonlyMap<string, string> = new Map([
+  ['openai-codex', 'ChatGPT (Codex)'],
+])
+
+/**
+ * The OAuth flow of a catalog provider this adapter signs in to.
+ * @param provider - provider route key.
+ * @returns the provider's OAuth flow, or `undefined` when the route is not a sign-in provider.
+ */
+export function catalogSignIn(provider: string): OAuthAuth | undefined {
+  if (!SIGN_IN_PROVIDERS.has(provider)) return undefined
+  const catalog = catalogProvider(provider)
+  if (catalog === undefined || catalog.auth.apiKey !== undefined) return undefined
+  return catalog.auth.oauth
+}
+
+/**
+ * Every installed catalog provider this adapter signs in to, with its display name.
+ * @returns `[provider, displayName]` pairs in declaration order.
+ */
+export function catalogSignInProviders(): ReadonlyArray<readonly [string, string]> {
+  return [...SIGN_IN_PROVIDERS].filter(([provider]) => catalogSignIn(provider) !== undefined)
 }
 
 /**

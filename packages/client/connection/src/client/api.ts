@@ -16,6 +16,7 @@ export type {
   GoalsApi, GoalRef,
   SettingsApi, SettingsNamespaceView, SettingsPathOpView, SettingsSecretView,
   CredentialsApi, CredentialView, ConfigurableProviderView, DiscoveredModelView, LlmApi,
+  BrainApi, BrainFolderNode, BrainNoteNode, BrainSearchMatch, BrainStatus, BrainTreeNode,
   SubagentsApi, SubagentAddress, SubagentCatalog, SubagentListEntry, SubagentPromptReceipt,
   JobView,
 } from '@deepseek-ai/dsh-host-apiproxy/api'

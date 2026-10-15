@@ -61,10 +61,11 @@ import { assertUsableApiKey, LlmError } from '@deepseek-ai/dsh-llm'
 import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { PiAiAdapter } from './adapter.ts'
-import { catalogProviderIds, catalogProviderTakesApiKey } from './catalog.ts'
+import { catalogProviderIds, catalogProviderTakesApiKey, catalogSignIn, catalogSignInProviders } from './catalog.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { discoverModels } from './discovery.ts'
+import { ProviderSignIn } from './sign-in.ts'
 
 export { PiAiAdapter } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
@@ -121,6 +122,7 @@ function directoryEntries(
   profiles: ReadonlyMap<string, ResolvedPiAiProviderProfile>,
 ): LlmConfigurableProvider[] {
   const catalog = new Set(catalogProviderIds())
+  const signIns = new Map(catalogSignInProviders())
   const entries = new Map<string, LlmConfigurableProvider>()
   const declare = (provider: string, displayName: string): void => {
     entries.set(provider, {
@@ -132,6 +134,7 @@ function directoryEntries(
       // narrowing a shipped provider's models stores a profile too, and that
       // route is still one pi-ai knows.
       declared: !catalog.has(provider),
+      ...signIns.has(provider) ? { signIn: true } : {},
     })
   }
   // A provider whose only native method is OAuth leaves this adapter nothing
@@ -139,10 +142,19 @@ function directoryEntries(
   // whose own posture — no key, credentials discovered by the provider — fails
   // every request. Catalog *membership* is unaffected, so `declare` above still
   // answers what pi-ai ships.
+  // The exception is a provider this adapter signs in to itself: the sign-in
+  // supplies what the provider's own posture lacks.
   for (const provider of catalog) {
-    if (catalogProviderTakesApiKey(provider)) declare(provider, provider)
+    const signInName = signIns.get(provider)
+    if (signInName !== undefined) declare(provider, signInName)
+    else if (catalogProviderTakesApiKey(provider)) declare(provider, provider)
   }
-  for (const [provider, profile] of profiles) declare(provider, profile.displayName)
+  for (const [provider, profile] of profiles) {
+    // A profile that names no display name of its own resolves to the route
+    // key; a sign-in provider keeps its friendlier directory name then.
+    const signInName = signIns.get(provider)
+    declare(provider, signInName !== undefined && profile.displayName === provider ? signInName : profile.displayName)
+  }
   return [...entries.values()]
 }
 
@@ -172,11 +184,31 @@ export function apply(ctx: Context, config: Config): void {
   }
   profiles()
 
+  // One sign-in per OAuth-only catalog provider this adapter signs in to,
+  // offered from mount so the user can sign in before adding the route.
+  const signIns = new Map<string, ProviderSignIn>()
+  for (const [provider] of catalogSignInProviders()) {
+    const oauth = catalogSignIn(provider)
+    /* v8 ignore next -- catalogSignInProviders lists only providers whose flow resolves */
+    if (oauth === undefined) continue
+    const signIn = new ProviderSignIn({
+      provider,
+      oauth,
+      credentials: () => ctx.get('credentials'),
+      warn: (message) => { ctx.logger.warn(message) },
+    })
+    signIns.set(provider, signIn)
+    ctx.llm.registerProviderSignIn(provider, request => signIn.handle(request))
+  }
+
   const resolveApiKey = async (
     provider: string,
     profile: ResolvedPiAiProviderProfile,
   ): Promise<string | undefined> => {
     const ref = profile.apiKeyEnv
+    // A sign-in route naming no key authenticates with its signed-in account.
+    const signIn = ref === undefined ? signIns.get(provider) : undefined
+    if (signIn !== undefined) return signIn.accessToken()
     // Only a profile that names no credential at all defers to pi-ai's
     // provider-native discovery. Once one is named, a miss must fail loud:
     // handing pi-ai `undefined` would let it pick up an unrelated ambient key

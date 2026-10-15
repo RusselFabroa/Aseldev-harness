@@ -14,7 +14,7 @@ Each root and child wrapper preserves the `data-chat-anchor-key="call:<id>"` and
 
 The package also fills `conversation.details.tool` with `ToolDetails`. The row and details renderers share the same pure card models for `terminal`, `read`, `diff`, `search`, and `web` render intents. Unknown intent tags and malformed wire card data fall back to flattened Tool result text.
 
-Generic rows classify known Tool names into search, read, shell, write, edit, code, or generic variants. Running, successful, failed, and interrupted lifecycle states come only from the frozen call/result slice. File paths resolve against the session `cwd` only when the user invokes the Host open-file callback; presentation code does not read Session services.
+Generic rows classify known Tool names into search, read, shell, write, edit, code, or generic variants. Running, successful, failed, and interrupted lifecycle states come only from the frozen call/result slice. A successful Tool result carrying durable image blocks (including `read_image`) renders inline thumbnails and an original-image lightbox through the session-authorized attachment loader; image references do not appear as JSON in the text output. Merely writing a file does not append an image to a session: the agent must call `read_image` on an image-capable model to publish it in the conversation. File paths resolve against the session `cwd` only when the user invokes the Host open-file callback; presentation code does not read Session services.
 
 ## Atomic Tool views
 
@@ -28,7 +28,7 @@ ctx.slots.inject('tool.call.toolview', () =>
   }, BusinessToolRow))
 ```
 
-The owner payload is `ToolCallOwnerProps`: `callId`, `toolName`, the frozen `block`, optional `cwd`, and plain `openFile`/`inspect` callbacks. The registration receives the normal session slot runtime share. It does not receive React nodes, Runtime services, or root/subcall knowledge.
+The owner payload is `ToolCallOwnerProps`: `callId`, `toolName`, the frozen `block`, optional `cwd` and `loadImage`, and plain `openFile`/`inspect` callbacks. The registration receives the normal session slot runtime share. It does not receive React nodes, Runtime services, or root/subcall knowledge.
 
 This package currently owns the generic fallback and the built-in shell/pwsh, read, write/edit, grep/glob, web, todo, question, and Code Dispatch presentations. `ui-skill` demonstrates a business-owned registration for `skill`.
 

@@ -58,6 +58,8 @@ interface EditorTarget extends ProviderIdentity {
   credentialRef?: string
   /** The adapter reports this route as one it does not ship (see {@link ProviderEditorProps.declared}). */
   declared?: boolean
+  /** The provider authenticates by account sign-in (see {@link ProviderEditorProps.signIn}). */
+  signIn?: boolean
 }
 
 /** Values that vary around the shared provider-editor rendering. */
@@ -76,6 +78,7 @@ function renderProviderEditor({ target, ...props }: ProviderEditorRenderProps): 
       displayName={target.displayName}
       settingsPath={target.settingsPath}
       {...target.declared === true ? { declared: true } : {}}
+      {...target.signIn === true ? { signIn: true } : {}}
       {...props}
     />
   )
@@ -148,6 +151,7 @@ function targetOf(row: ProviderRow): EditorTarget {
     // route-level fields only a declared route owns off the card, exactly as
     // it leaves the custom tag off the row.
     ...row.entry.declared === true ? { declared: true } : {},
+    ...row.entry.signIn === true ? { signIn: true } : {},
   }
 }
 
@@ -417,6 +421,7 @@ function Loaded({ injected }: { injected: ModelsSectionInjected }): ReactNode {
                 key={addTarget.provider}
                 provider={addTarget.provider}
                 displayName={addTarget.displayName}
+                {...addTarget.signIn === true ? { signIn: true } : {}}
                 hideTitle
                 namespace={addNamespace}
                 settingsPath={addTarget.settingsPath}

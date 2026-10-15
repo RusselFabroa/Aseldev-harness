@@ -23,6 +23,19 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar.workspaces': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
     /**
+     * The Asel's Brain knowledge-vault section, rendered above the workspace
+     * browser inside the browsing region. Declared by this package's 'sidebar'
+     * entry; ui-brain registers the section. It receives the same column
+     * fold-state share as the workspace browser.
+     */
+    'sidebar.brain': { kind: 'single'; scope: 'root'; owner: SidebarSectionOwnerProps }
+    /**
+     * AselDev: quick-access launcher buttons stacked right under the brain
+     * section (ui-artifacts registers the Artifacts button). Same column
+     * fold-state share as the brain section; entries sort by their `order`.
+     */
+    'sidebar.launcher': { kind: 'list'; scope: 'root'; owner: SidebarSectionOwnerProps }
+    /**
      * The settings seat at the sidebar foot. Declared by this package's
      * 'sidebar' entry; ui-settings registers its trigger row + modal panel.
      * The sidebar passes only its column state — it holds no settings state.
@@ -85,5 +98,5 @@ export type SidebarRootInjected = {
  */
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
-  & PropsRenderSlots<'sidebar.workspaces' | 'sidebar.settings' | 'sidebar.footer.action'>
+  & PropsRenderSlots<'sidebar.workspaces' | 'sidebar.brain' | 'sidebar.launcher' | 'sidebar.settings' | 'sidebar.footer.action'>
   & SidebarRootInjected & PropsLocale<'sidebar'>

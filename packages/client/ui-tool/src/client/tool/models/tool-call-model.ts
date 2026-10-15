@@ -66,6 +66,7 @@ const TOOL_TITLES: Record<string, string> = {
   cordis_stop: 'Stop Cordis Plugin',
   cordis_undefine: 'Remove Cordis Plugin',
   pwsh: 'Pwsh',
+  read_image: 'Image',
 }
 
 /**
@@ -98,9 +99,9 @@ export interface ToolRowModel {
 }
 
 /**
- * Flatten a settled result's content blocks to display text: text blocks
- * verbatim, other block shapes as pretty JSON. Empty content on a failed call
- * falls back to the structured error's `name: code` line.
+ * Flatten a settled result's text blocks, excluding images rendered by the
+ * image viewer and formatting unknown blocks as JSON. Empty failed results
+ * use the structured error's `name: code` line.
  * @param node - the settled result node.
  * @returns the flattened result text (may be empty).
  */
@@ -108,7 +109,7 @@ export function resultText(node: ToolResultNode): string {
   const parts: string[] = []
   for (const block of node.content) {
     if (block.type === 'text') parts.push(block.text)
-    else parts.push(JSON.stringify(block, null, 2))
+    else if (block.type !== 'image') parts.push(JSON.stringify(block, null, 2))
   }
   if (parts.length === 0 && node.error !== undefined) {
     parts.push(`${node.error.name}: ${node.error.code}`)

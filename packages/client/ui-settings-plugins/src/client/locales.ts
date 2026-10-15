@@ -11,6 +11,7 @@ export type PluginsSettingsLocaleKey =
   | 'webSearchTitle' | 'webSearchDescription'
   | 'webSearchApiKey' | 'webSearchApiKeyHint' | 'webSearchApiKeySet' | 'webSearchApiKeyUnset'
   | 'webSearchBaseUrl' | 'webSearchBaseUrlHint' | 'webSearchMaxUses' | 'webSearchMaxUsesHint'
+  | 'brainTitle' | 'brainDescription' | 'brainPath' | 'brainPathHint'
 
 /** English copy. */
 export const en: Record<PluginsSettingsLocaleKey, string> = {
@@ -51,6 +52,10 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   webSearchBaseUrlHint: 'Leave blank to use the provider default.',
   webSearchMaxUses: 'Max searches per request',
   webSearchMaxUsesHint: 'How many times one request may search before it must answer.',
+  brainTitle: 'Brain',
+  brainDescription: 'The local knowledge vault the sidebar reads.',
+  brainPath: 'Vault path',
+  brainPathHint: 'Absolute path of the Markdown vault. Leave blank to disable.',
 }
 
 /** Simplified Chinese copy. */
@@ -92,4 +97,8 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   webSearchBaseUrlHint: '留空则使用提供方默认地址。',
   webSearchMaxUses: '单次请求最多搜索次数',
   webSearchMaxUsesHint: '一次请求在必须作答前最多可以搜索多少次。',
+  brainTitle: '大脑',
+  brainDescription: '侧边栏读取的本地知识库。',
+  brainPath: '知识库路径',
+  brainPathHint: 'Markdown 知识库的绝对路径。留空表示禁用。',
 }

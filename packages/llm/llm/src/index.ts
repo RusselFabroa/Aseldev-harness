@@ -15,6 +15,8 @@ import type {
   LlmModelContext,
   LlmModelDiscoveryRequest,
   LlmModelInfo,
+  LlmProviderSignInRequest,
+  LlmProviderSignInState,
   LlmResolvedModelInfo,
   LlmProviderInfo,
   ModelModality,
@@ -288,6 +290,10 @@ export class LlmRuntime extends Service {
     string,
     (request: LlmModelDiscoveryRequest) => Promise<readonly LlmDiscoveredModel[]>
   >()
+  private signIns = new Map<
+    string,
+    (request: LlmProviderSignInRequest) => Promise<LlmProviderSignInState>
+  >()
 
   constructor(ctx: Context) {
     super(ctx, 'llm')
@@ -556,6 +562,54 @@ export class LlmRuntime extends Service {
       })
     }
     return models
+  }
+
+  /**
+   * Offer an interactive sign-in for one provider route — an account login
+   * the owning adapter runs and whose tokens it keeps — so configuration
+   * surfaces can drive it. Keyed by provider route, because a sign-in belongs
+   * to one account on one provider, and offered whether or not the route is
+   * registered: signing in usually comes before the route serves anything.
+   * Disposed with the fiber.
+   * @param provider - provider route the sign-in authenticates.
+   * @param handle - answers one request; never returns or logs a secret.
+   * @returns the disposer that withdraws the offer.
+   */
+  registerProviderSignIn(
+    provider: string,
+    handle: (request: LlmProviderSignInRequest) => Promise<LlmProviderSignInState>,
+  ): () => void {
+    const dispose = this.ctx.effect(function* (this: LlmRuntime) {
+      if (provider.length === 0) {
+        throw new LlmError('provider sign-in needs a non-empty provider route', 'INVALID_SIGN_IN')
+      }
+      if (this.signIns.has(provider)) {
+        throw new LlmError(`provider sign-in for "${provider}" is already registered`, 'DUPLICATE_SIGN_IN')
+      }
+      this.signIns.set(provider, handle)
+      yield () => {
+        this.signIns.delete(provider)
+      }
+    }.bind(this), 'llm.registerProviderSignIn()')
+    return () => void dispose()
+  }
+
+  /**
+   * Drive one provider's sign-in: read its state, start or cancel a login,
+   * hand it a pasted authorization code, or sign out.
+   * @param provider - provider route whose sign-in to drive.
+   * @param request - the step to take.
+   * @returns the sign-in state after the step.
+   */
+  async providerSignIn(
+    provider: string,
+    request: LlmProviderSignInRequest,
+  ): Promise<LlmProviderSignInState> {
+    const handle = this.signIns.get(provider)
+    if (handle === undefined) {
+      throw new LlmError(`no sign-in is registered for provider "${provider}"`, 'NO_SIGN_IN')
+    }
+    return handle(request)
   }
 
   /**

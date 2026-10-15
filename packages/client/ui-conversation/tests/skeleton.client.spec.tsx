@@ -260,7 +260,7 @@ function mount(
 describe('Hero chrome', () => {
   it('renders the English preview badge through the hero locale seat', () => {
     const view = render(<HeroShell t={makeTranslate(en, commonEn)} />)
-    expect(view.getByText('Into the Unknown')).toBeTruthy()
+    expect(view.getByText('AselDev Harness')).toBeTruthy()
     expect(view.getByText('Preview')).toBeTruthy()
   })
 })

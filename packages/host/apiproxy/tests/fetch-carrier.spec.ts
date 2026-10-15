@@ -281,6 +281,23 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async discoverModels(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { models: [] } } }
       },
+      async signIn(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { state: 'signed-out' } } }
+      },
+    },
+    brain: {
+      async list(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { status: { configured: false }, tree: [] } } }
+      },
+      async search(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { items: [] } } }
+      },
+      async read(request) {
+        return {
+          rpcId: request.rpcId,
+          result: { ok: false, error: { code: 'brain-not-found', message: 'stub', details: { path: request.payload.path } } },
+        }
+      },
     },
     events: {
       mux: (_request, signal) => stream(muxFrames, signal),

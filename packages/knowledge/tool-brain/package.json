@@ -1,0 +1,50 @@
+{
+  "name": "@deepseek-ai/dsh-tool-brain",
+  "description": "Model-facing brain_search/brain_read tools over the DeepSeek Harness read-only knowledge-vault seam (ctx.brain)",
+  "version": "0.1.0-rc.7",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/knowledge/tool-brain"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/dsh-brain": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:^"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/cordis-plugin-include": "workspace:^",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:^",
+    "@deepseek-ai/dsh-brain-local": "workspace:^",
+    "@deepseek-ai/dsh-invariants": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-system-prompt": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:^"
+  }
+}

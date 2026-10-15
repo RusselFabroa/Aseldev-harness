@@ -28,6 +28,7 @@ function scriptedApi(overrides: {
   settings?: Partial<ApiProxy['settings']>
   credentials?: Partial<ApiProxy['credentials']>
   llm?: Partial<ApiProxy['llm']>
+  brain?: Partial<ApiProxy['brain']>
   respond?: ApiProxy['respond']
 } = {}): ApiProxy {
   async function *empty<F>(): AsyncGenerator<RpcRequest<F>> { /* no frames */ }
@@ -126,7 +127,14 @@ function scriptedApi(overrides: {
       providers: r => ok(r, { providers: [] }),
       models: r => ok(r, { groups: [], failures: [] }),
       discoverModels: err,
+      signIn: err,
       ...overrides.llm,
+    },
+    brain: {
+      list: r => ok(r, { status: { configured: false }, tree: [] }),
+      search: r => ok(r, { items: [] }),
+      read: err,
+      ...overrides.brain,
     },
     events: { mux: () => empty<MuxFrame>(), host: () => empty<HostFrame>(), ...overrides.events },
     respond: overrides.respond ?? (() => Promise.resolve({ accepted: false as const, reason: 'not-pending' as const })),
@@ -753,6 +761,7 @@ describe('config unary surface', () => {
         providers: record('llm.providers', r => ok(r, { providers: [providerRow] })),
         models: record('llm.models', r => ok(r, { groups: [group], failures: [] })),
         discoverModels: record('llm.discoverModels', r => ok(r, { models: [{ id: 'acme-large', contextWindow: 65536 }] })),
+        signIn: record('llm.signIn', r => ok(r, { state: 'pending' as const, authUrl: 'https://auth.example/authorize' })),
       },
     })
     const c = client(api)
@@ -785,11 +794,13 @@ describe('config unary surface', () => {
       apiKey: 'probe-key',
     })
     expect(discovered.result).toEqual({ ok: true, value: { models: [{ id: 'acme-large', contextWindow: 65536 }] } })
+    const signIn = await c.llm.signIn({ provider: 'openai-codex', action: 'start' })
+    expect(signIn.result).toEqual({ ok: true, value: { state: 'pending', authUrl: 'https://auth.example/authorize' } })
 
     expect(seen.map(call => call.method)).toEqual([
       'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
       'credentials.describe', 'credentials.set', 'credentials.unset',
-      'llm.providers', 'llm.models', 'llm.discoverModels',
+      'llm.providers', 'llm.models', 'llm.discoverModels', 'llm.signIn',
     ])
     expect(seen[2]?.payload).toEqual({ ns: 'llm-deepseek', patch: { baseURL: 'https://next' } })
     expect(seen[4]?.payload)

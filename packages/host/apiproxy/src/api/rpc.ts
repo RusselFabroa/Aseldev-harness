@@ -80,6 +80,12 @@ export interface RpcErrorDetailsMap {
    * details name the endpoint asked, never the credential offered.
    */
   'model-discovery-failed': { settingsNs: string; baseURL?: string }
+  /**
+   * A provider sign-in step failed: no sign-in is registered for the route,
+   * the host has no credential store, or the login flow rejected the step.
+   * The details name the provider and step, never a pasted code or token.
+   */
+  'sign-in-failed': { provider: string; action: string }
   'title-invalid': { sessionId: SessionId }
   'fork-unavailable': { sessionId: SessionId }
   'subagent-parent-unavailable': { parentSessionId: SessionId }
@@ -92,6 +98,16 @@ export interface RpcErrorDetailsMap {
   'subagent-not-resumable': { childSessionId: SessionId }
   'subagent-unauthorized': { childSessionId: SessionId }
   'subagent-delivery-unavailable': { childSessionId: SessionId }
+  /** The brain provider is not mounted in this composition. */
+  'brain-unavailable': {}
+  /** A brain read was attempted before any vault path was configured. */
+  'brain-unconfigured': {}
+  /** A brain read named a note that does not exist. */
+  'brain-not-found': { path: string }
+  /** A brain read named an absolute or vault-escaping path. */
+  'brain-invalid-path': { path: string }
+  /** A brain read failed on an I/O error. */
+  'brain-io': { path: string }
   'internal': {}
 }
 

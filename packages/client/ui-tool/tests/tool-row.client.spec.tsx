@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 
 import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -35,6 +35,7 @@ describe('tool-call-model', () => {
     expect(classifyTool('bash')).toBe('bash')
     expect(classifyTool('pwsh')).toBe('bash')
     expect(classifyTool('read')).toBe('read')
+    expect(classifyTool('read_image')).toBe('others')
     expect(classifyTool('web_fetch')).toBe('read')
     expect(classifyTool('web_search')).toBe('search')
     expect(classifyTool('grep')).toBe('search')
@@ -149,10 +150,12 @@ describe('tool-call-model', () => {
       .toBe('{\n  "code": ""\n}')
   })
 
-  it('resultText flattens text blocks verbatim, other shapes as JSON, empty error content to name: code', () => {
+  it('resultText keeps text and unknown blocks, leaving images for the viewer', () => {
     expect(resultText(result({ content: [{ type: 'text', text: 'a\nb' }] }))).toBe('a\nb')
     expect(resultText(result({ content: [{ type: 'text', text: 'a' }, { type: 'image', data: 'x' } as never] })))
-      .toBe(`a\n${JSON.stringify({ type: 'image', data: 'x' }, null, 2)}`)
+      .toBe('a')
+    expect(resultText(result({ content: [{ type: 'other', data: 'x' } as never] })))
+      .toBe(JSON.stringify({ type: 'other', data: 'x' }, null, 2))
     expect(resultText(result({ content: [], isError: true, error: { name: 'ToolError', code: 'denied' } })))
       .toBe('ToolError: denied')
     expect(resultText(result({ content: [] }))).toBe('')
@@ -377,6 +380,36 @@ describe('ToolRow', () => {
 describe('GenericToolCard', () => {
   const props = (toolName: string, block: RunningToolCall | ToolResultNode): GenericToolCardProps => ({
     callId: 'c1', toolName, block, openFile: vi.fn(), t,
+  })
+
+  it('renders a saved tool-result image inline and opens its original on click', async () => {
+    const attachment = {
+      attachmentId: 'image-1', mediaType: 'image/png', bytes: 68, width: 1, height: 1, name: 'screenshot.png',
+    } as const
+    const loadImage = vi.fn(async () => 'data:image/png;base64,AAAA')
+    const block = result({
+      call: { name: 'read_image', argsRaw: '{"file_path":"media/screenshots/screenshot.png"}' },
+      content: [{ type: 'text', text: 'Saved screenshot' }, { type: 'image', attachment }],
+    })
+    const view = render(<GenericToolCard {...props('read_image', block)} loadImage={loadImage} />)
+    await waitFor(() => { expect(view.getByRole('img', { name: 'screenshot.png' })).toBeTruthy() })
+    expect(loadImage).toHaveBeenCalledWith(attachment)
+    expect(view.getByText('Image')).toBeTruthy()
+    expect(view.queryByText('attachmentId')).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: /screenshot.png，点击查看原图/ }))
+    expect(view.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('does not show an image when the settled tool failed', () => {
+    const attachment = {
+      attachmentId: 'image-1', mediaType: 'image/png', bytes: 68, width: 1, height: 1,
+    } as const
+    const loadImage = vi.fn(async () => 'data:image/png;base64,AAAA')
+    const view = render(<GenericToolCard {...props('read_image', result({
+      isError: true, content: [{ type: 'image', attachment }],
+    }))} loadImage={loadImage} />)
+    expect(view.queryByRole('img')).toBeNull()
+    expect(loadImage).not.toHaveBeenCalled()
   })
 
   it('renders the classified variant row from the frozen slice', () => {

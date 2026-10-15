@@ -21,6 +21,10 @@ import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-session-query'
 import { SubagentError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentListEntry as CatalogSubagentListEntry } from '@deepseek-ai/dsh-subagent'
+// Type-only: the ctx.brain Context merge plus the provider error/seam types.
+import type {} from '@deepseek-ai/dsh-brain'
+import { BrainError } from '@deepseek-ai/dsh-brain'
+import type { BrainService } from '@deepseek-ai/dsh-brain'
 import { isUserInvocable } from '@deepseek-ai/dsh-skill'
 import type { Workspace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
 import {
@@ -599,6 +603,25 @@ function directoryError(error: unknown): RpcError {
     return { code: error.code, message: error.message, details: { path: error.path } }
   }
   return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} }
+}
+
+/** Map a brain-provider failure onto the wire error vocabulary (unknown throws stay internal). */
+function brainError(error: unknown): RpcError {
+  if (error instanceof BrainError) {
+    switch (error.code) {
+      case 'BRAIN_NOT_CONFIGURED': return { code: 'brain-unconfigured', message: error.message, details: {} }
+      case 'BRAIN_NOT_FOUND': return { code: 'brain-not-found', message: error.message, details: { path: '' } }
+      case 'BRAIN_INVALID_PATH': return { code: 'brain-invalid-path', message: error.message, details: { path: '' } }
+      case 'BRAIN_IO': return { code: 'brain-io', message: error.message, details: { path: '' } }
+    }
+  }
+  return { code: 'internal', message: error instanceof Error ? error.message : String(error), details: {} }
+}
+
+/** Derive a note's display title from its vault-relative path. */
+function noteTitle(path: string): string {
+  const last = path.split('/').pop() ?? path
+  return last.replace(/\.md$/i, '')
 }
 
 /** Resolved Agent model and project-directory defaults consumed by the API implementation. */
@@ -2950,6 +2973,50 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
     },
 
+    brain: {
+      async list(request, signal) {
+        const brain = ctx.get('brain') as BrainService | undefined
+        if (brain === undefined) {
+          return err(request, { code: 'brain-unavailable', message: 'the brain provider is not mounted', details: {} })
+        }
+        try {
+          const status = brain.status()
+          const tree = await brain.list(signal)
+          return ok(request, { status, tree })
+        } catch (error: unknown) {
+          if (signal.aborted) return err(request, { code: 'cancelled', message: 'brain listing was aborted', details: {} })
+          return err(request, brainError(error))
+        }
+      },
+
+      async search(request, signal) {
+        const brain = ctx.get('brain') as BrainService | undefined
+        if (brain === undefined) {
+          return err(request, { code: 'brain-unavailable', message: 'the brain provider is not mounted', details: {} })
+        }
+        try {
+          return ok(request, { items: await brain.search(request.payload.query, signal) })
+        } catch (error: unknown) {
+          if (signal.aborted) return err(request, { code: 'cancelled', message: 'brain search was aborted', details: {} })
+          return err(request, brainError(error))
+        }
+      },
+
+      async read(request, signal) {
+        const brain = ctx.get('brain') as BrainService | undefined
+        if (brain === undefined) {
+          return err(request, { code: 'brain-unavailable', message: 'the brain provider is not mounted', details: {} })
+        }
+        try {
+          const content = await brain.read(request.payload.path, signal)
+          return ok(request, { path: request.payload.path, title: noteTitle(request.payload.path), content })
+        } catch (error: unknown) {
+          if (signal.aborted) return err(request, { code: 'cancelled', message: 'brain read was aborted', details: {} })
+          return err(request, brainError(error))
+        }
+      },
+    },
+
     goals: {
       // Mutations only — the read side is the 'goal' session projection.
       // Every verb resolves the session's agent (agentFor: implicit cold
@@ -3317,6 +3384,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           settingsPath: [...entry.settingsPath],
           active: active.has(entry.provider),
           ...entry.declared === undefined ? {} : { declared: entry.declared },
+          ...entry.signIn === undefined ? {} : { signIn: entry.signIn },
         }))
         // Routes registered without a directory declaration still appear —
         // they exist and serve models — just with no settings address. No
@@ -3358,6 +3426,24 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             code: 'model-discovery-failed',
             message: error instanceof Error ? error.message : String(error),
             details: { settingsNs, ...baseURL === undefined ? {} : { baseURL } },
+          })
+        }
+      },
+
+      async signIn(request) {
+        const { provider, action, code } = request.payload
+        try {
+          const state = await ctx.llm.providerSignIn(provider, {
+            action,
+            ...code === undefined ? {} : { code },
+          })
+          return ok(request, state)
+        } catch (error: unknown) {
+          // The details repeat the provider and step only, never the pasted code.
+          return err(request, {
+            code: 'sign-in-failed',
+            message: error instanceof Error ? error.message : String(error),
+            details: { provider, action },
           })
         }
       },

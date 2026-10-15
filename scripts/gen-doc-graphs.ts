@@ -106,6 +106,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'The host commits accepted images before session events; provider adapters resolve authorized durable references into provider-native content.',
   },
   {
+    key: 'brain',
+    pkg: 'brain',
+    title: 'Read-only knowledge-vault seam',
+    mode: 'seam',
+    implementations: ['brain-local'],
+    consumers: ['host-apiproxy', 'tool-brain'],
+    note: 'The local provider walks one configured Markdown directory; host RPCs feed the Web browser and the brain tools resolve the service per call.',
+  },
+  {
     key: 'llm',
     pkg: 'llm',
     title: 'LLM adapter registry',
@@ -266,7 +275,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     pkg: 'tools',
     title: 'Tool registry and guarded execution pipeline',
     mode: 'core',
-    consumers: ['agent-loop', 'tool-ask-user', 'tool-bash', 'tool-cordis', 'tool-fs', 'tool-terminal', 'tool-skill', 'tool-subagent', 'tool-todo', 'tool-web'],
+    consumers: ['agent-loop', 'tool-ask-user', 'tool-bash', 'tool-brain', 'tool-cordis', 'tool-fs', 'tool-terminal', 'tool-skill', 'tool-subagent', 'tool-todo', 'tool-web'],
     note: 'Registers capabilities, owns Code Mode transport, and routes calls through pre-policy, monotonic guards, around dispatch, post-policy, and final-result observation.',
   },
   {
