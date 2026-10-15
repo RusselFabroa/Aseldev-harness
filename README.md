@@ -9,6 +9,7 @@ What this build adds on top of DeepSeek Harness:
 | **AselDev branding**: name, `‹A›` code-bracket logo, favicon | Sidebar, browser tab |
 | **ChatGPT / Codex sign-in**: use your ChatGPT plan instead of an API key | Settings → Models → OpenAI Codex |
 | **Asel's Brain**: one sidebar button opens a large window over your Markdown (Obsidian) vault: folder tree, search, reader | Sidebar → Asel's Brain |
+| **Brain for agents**: every agent can search, read and write the vault (`brain_write`: Inbox notes at once, other folders after a Yes/No prompt), gets the guide's core card in every chat, and can never reach `05 - Private` | Any chat, `/send-changes-to-brain` |
 | **Skills page**: browse, create, edit and delete your personal skills; pick the skills folder | Settings → Skills, and type `/` in a chat |
 | **Artifacts**: the agent makes live pages, documents, SVGs and diagrams, with versions, a sandboxed viewer and a library | Chat cards, Sidebar → Artifacts |
 | **Helper scripts**: one-click rebuild and start | `rebuild-aseldev.cmd`, `start-aseldev.cmd` |
@@ -102,8 +103,9 @@ If git reports conflicts, they're almost always in files listed under [What is c
 |---|---|
 | `aseldev\plugins\skills-manager\host.ts` | Settings → Skills backend and the skill loader for your skills folder |
 | `aseldev\plugins\artifacts\host.ts` | The agent's `artifact` tool, version storage and the sandboxed viewer pages |
+| `aseldev\plugins\brain\host.ts` | Brain rules for agents: the `05 - Private` block, the core card, and the `brain_write` tool |
 | `aseldev\skills\` | Your personal skills (`<name>\SKILL.md`) |
-| `aseldev\setup-profile.ps1` | Connects the two plugins and the skills folder to your profile |
+| `aseldev\setup-profile.ps1` | Connects the plugins and the skills folder to your profile |
 | `start-aseldev.cmd`, `rebuild-aseldev.cmd` | Start / rebuild helpers |
 | `packages\…` | The harness itself, with the AselDev changes |
 

@@ -1,12 +1,12 @@
 ---
 name: send-changes-to-brain
-description: Save a dated summary of what changed in the current session (files edited, decisions made, open items) as a Markdown note in Asel's Brain, the Obsidian vault. Run only when the user types /send-changes-to-brain.
+description: Save a dated summary of what changed in the current session (files edited, decisions made, open items) to today's dev-log note in Asel's Brain, the Obsidian vault, then suggest where else it could be filed. Run only when the user types /send-changes-to-brain.
 disable-model-invocation: true
 ---
 
 # Send changes to brain
 
-Write one note into the user's vault that captures what this session changed, then report the note path.
+Write this session's changes into today's dev-log note in Asel's Brain with the `brain_write` tool, then suggest where the lasting parts could also be filed. Only the dev-log note is written without asking; project and knowledge notes are updated only when Asel says yes.
 
 ## 1. Collect the changes
 
@@ -17,13 +17,11 @@ Build the summary from what actually happened in this session:
 - **Open items**: anything unfinished, failing, or explicitly deferred.
 - **Next steps**: only steps the user agreed to or asked for.
 
-Leave out secrets, API keys, tokens, and credential values even if they appeared in the session.
+Leave out secrets, API keys, tokens, and credential values even if they appeared in the session. Never link to or quote anything from `05 - Private`.
 
-## 2. Format the note body
+## 2. Format the entry
 
 ```markdown
-## <HH:mm> · <short session title>
-
 **Workspace:** <workspace folder name>
 
 ### Changed files
@@ -39,30 +37,39 @@ Leave out secrets, API keys, tokens, and credential values even if they appeared
 - ...
 ```
 
-Omit a section that would be empty. Keep each bullet to one line.
+Omit a section that would be empty. Keep each bullet to one line. Do not add a date or time heading: `brain_write` adds `## YYYY-MM-DD HH:mm · <heading>` itself.
 
-## 3. Save it with the helper
+## 3. Save it to today's dev log
 
-Pipe the body into the helper script beside this file. It resolves the vault (env `ASELDEV_BRAIN_VAULT`, else the `brain.path` setting in `$DSH_HOME/settings.yaml`), writes to `01 - Inbox/<YYYY-MM-DD> - <workspace>.md`, creates the note with frontmatter the first time, and appends to it on later runs the same day.
+Call `brain_write` once:
 
-PowerShell:
+| Argument | Value |
+| --- | --- |
+| `action` | `"create"` |
+| `folder` | `"01 - Inbox"` |
+| `title` | the workspace folder name (the file becomes `01 - Inbox/YYYY-MM-DD - <workspace>.md`) |
+| `heading` | a short session title, e.g. `"Brain write tool"` |
+| `content` | the entry from step 2 |
+| `type` | `"dev-log"` |
+| `tags` | `["dev-log", "aseldev-harness"]` |
+| `ifExists` | `"append"` (later runs the same day add a new section to the same note) |
 
-```powershell
-@'
-<note body from step 2>
-'@ | node "<this skill's folder>/scripts/save-note.mjs" --workspace "<workspace folder name>"
-```
+The tool writes the frontmatter and the `Parent:` link on the first run of the day. Inbox writes need no approval.
 
-bash:
+If `brain_write` is not available or refuses the call, show its message and stop. Only as a fallback when the tool is missing (older build), pipe the entry into `scripts/save-note.mjs` beside this file (`node "<this skill's folder>/scripts/save-note.mjs" --workspace "<workspace>"`, entry on stdin); that helper is being retired.
 
-```bash
-node "<this skill's folder>/scripts/save-note.mjs" --workspace "<workspace folder name>" <<'EOF_NOTE'
-<note body from step 2>
-EOF_NOTE
-```
+## 4. Suggest filing
 
-Optional flags: `--folder "<vault subfolder>"` (default `01 - Inbox`), `--date YYYY-MM-DD`.
+After saving, look for lasting knowledge in the entry and list at most five suggestions, each with the exact target and the one or two lines you would add:
 
-## 4. Report
+- a decision or change for a project → that project's change log or overview under `02 - Projects` (find the note with `brain_search`; give its path);
+- a reusable lesson or how-to → a note under `04 - Technical Knowledge`;
+- a reusable agent instruction → `03 - AI Skills`.
 
-Tell the user the note path the script printed, and whether it created a new note or appended to today's note. If the script fails, show its error message and do not retry with a different location unless the user says so.
+Write nothing for these yet. Ask Asel which ones to file. Only for the ones he says yes to, call `brain_write` with `action: "append"`, the `note` path, a short `heading` and the lines; he will also get an approval prompt for each, because those folders are outside the Inbox. If nothing lasting came up, say so in one line and skip the list.
+
+Never suggest writing to `05 - Private`, `00 - AI Assistant Start Here` (the guide and Knowledge Base), `99 - Archive` or `_Templates`; the tool refuses them anyway.
+
+## 5. Report
+
+Tell Asel the dev-log note path and whether it was created or appended to, then the suggestions from step 4 (or that there were none).

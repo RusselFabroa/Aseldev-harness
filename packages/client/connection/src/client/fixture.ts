@@ -564,7 +564,6 @@ function buildAlphaLog(): SessionEvent[] {
   push({ type: 'turn/end', data: { turn: 72, reason: { kind: 'max-tokens' } } })
 
   // Turn 73: user and assistant images share one durable fixture object.
-  // The todo turn remains last so its standing projection stays visible.
   push({ type: 'turn/start', data: { turn: 73 } })
   push({
     type: 'user/message',
@@ -595,6 +594,29 @@ function buildAlphaLog(): SessionEvent[] {
   const callIndex = events.length - 4
   const callTime = events[callIndex]?.time as number
   events.splice(callIndex + 1, 0, { type: 'todo/write', time: callTime + 400, data: { todos: fixtureTodos } })
+
+  // The screenshot result reuses the history image to exercise the Tool row.
+  {
+    const turn = 75
+    const callId = `fx-call-${turn}`
+    const args = '{"file_path":"media/screenshots/fixture-image.png"}'
+    push({ type: 'turn/start', data: { turn } })
+    push({ type: 'user/message', surfaceOp: 'append', data: userMessage(text('问题 75：展示保存的截图。')) })
+    push({ type: 'step/start', data: { turn, step: 0 } })
+    push({ type: 'assistant/message', surfaceOp: 'append', data: {
+      turn, step: 0, message: assistantMessage([{ type: 'tool-call', id: callId, name: 'read_image', arguments: args } as ContentBlock]),
+    } })
+    push({ type: 'tool/call', data: { turn, step: 0, callId, name: 'read_image', arguments: args } })
+    push({ type: 'tool/result', surfaceOp: 'append', data: {
+      turn, step: 0, message: toolResultMessage(callId, [
+        { type: 'text', text: 'image/png image, 160x90 px, 247 bytes' },
+        { type: 'image', attachment: FIXTURE_IMAGE_REF },
+      ], false),
+    } })
+    push({ type: 'step/end', data: { turn, step: 0 } })
+    push({ type: 'turn/end', data: { turn, reason: { kind: 'completed' } } })
+  }
+
   events.forEach((e, i) => { e.seq = i })
   return events as unknown as SessionEvent[]
 }

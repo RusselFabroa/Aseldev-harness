@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 
 import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-runtime/client'
+import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-client-runtime/client'
@@ -384,7 +385,7 @@ describe('GenericToolCard', () => {
 
   it('renders a saved tool-result image inline and opens its original on click', async () => {
     const attachment = {
-      attachmentId: 'image-1', mediaType: 'image/png', bytes: 68, width: 1, height: 1, name: 'screenshot.png',
+      attachmentId: AttachmentId('sha256:' + 'a'.repeat(64)), mediaType: 'image/png', bytes: 68, width: 1, height: 1, name: 'screenshot.png',
     } as const
     const loadImage = vi.fn(async () => 'data:image/png;base64,AAAA')
     const block = result({
@@ -402,7 +403,7 @@ describe('GenericToolCard', () => {
 
   it('does not show an image when the settled tool failed', () => {
     const attachment = {
-      attachmentId: 'image-1', mediaType: 'image/png', bytes: 68, width: 1, height: 1,
+      attachmentId: AttachmentId('sha256:' + 'a'.repeat(64)), mediaType: 'image/png', bytes: 68, width: 1, height: 1,
     } as const
     const loadImage = vi.fn(async () => 'data:image/png;base64,AAAA')
     const view = render(<GenericToolCard {...props('read_image', result({

@@ -1,18 +1,15 @@
 // @vitest-environment jsdom
 // Multimodal image surfaces over the BUILT client graph (the code-mode-fixture
 // idiom: real bundles via AppWebEntry, keyless FixtureApiClient transport).
-// Opens the fixture history session whose turn 73 carries an image in BOTH a
-// user message and an assistant message, and pins the product surfaces: the
-// history ImageGallery loading real fixture bytes through the authorized
-// sessions.attachment route, the single-click ImageLightbox, and the composer
-// intake chain (paste → ordered thumbnail rail → image-only send enablement → remove).
+// Opens the fixture history session containing user, assistant, and Tool-result
+// images. Pins the authorized attachment loader, lightbox, and composer intake.
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { expect, it } from 'vitest'
 import { installAssembledBootEnv, mountAssembledApp } from './assembled-boot.ts'
 
 installAssembledBootEnv()
 
-/** Open the fixture history session (the alpha log carrying the turn-72 image pair) and wait for its gallery. */
+/** Open the fixture history session containing durable image blocks. */
 async function openFixtureSession(): Promise<void> {
   const tree = await screen.findByRole('tree', { name: 'Sessions' }, { timeout: 10_000 })
   const group = (await within(tree).findAllByText('fixture'))
@@ -47,6 +44,7 @@ it('renders the history image pair through the authorized attachment route and o
     }
   }, { timeout: 10_000 })
   const galleryShape = (align: string) => [...document.querySelectorAll(`[data-align="${align}"] img`)]
+    .filter(img => img.closest('[data-chat-call-id="fx-call-75"]') === null)
     .map(img => ({ alt: img.getAttribute('alt'), scheme: img.getAttribute('src')?.split(':')[0] }))
   expect({ user: galleryShape('end'), assistant: galleryShape('start') }).toMatchInlineSnapshot(`
     {
@@ -76,6 +74,20 @@ it('renders the history image pair through the authorized attachment route and o
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+})
+
+it('renders a saved read_image result inline in its Tool row', async () => {
+  mountAssembledApp()
+  await openFixtureSession()
+  const row = await screen.findByText('media/screenshots/fixture-image.png')
+  const call = row.closest<HTMLElement>('[data-chat-call-id="fx-call-75"]')
+  if (call === null) throw new Error('read_image Tool row missing')
+  await waitFor(() => {
+    const image = call.querySelector<HTMLImageElement>('img[alt="fixture-image.png"]')
+    expect(image?.src.startsWith('blob:')).toBe(true)
+  })
+  expect(call.textContent).not.toContain('attachmentId')
+  expect(call.querySelectorAll('img')).toHaveLength(1)
 })
 
 it('accepts pasted images into the composer rail in order and removes them', async () => {

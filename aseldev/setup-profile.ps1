@@ -31,6 +31,15 @@ $block = @(
   ('        root: ' + (Quote $skillsDir)),
   '    - id: aseldev-artifacts',
   ('      name: ' + (Quote (FileUrl (Join-Path $repo 'aseldev\plugins\artifacts\host.ts')))),
+  '# Brain: blocks agents from 05 - Private (any tool), adds the core card to every chat and the brain_write tool.',
+  '    - id: aseldev-brain',
+  ('      name: ' + (Quote (FileUrl (Join-Path $repo 'aseldev\plugins\brain\host.ts')))),
+  '      config:',
+  '        privateFolders:',
+  '          - ''05 - Private''',
+  '# Brain tools (brain_search, brain_read) for every agent in every preset.',
+  '    - id: aseldev-tool-brain',
+  '      name: ''@deepseek-ai/dsh-tool-brain''',
   '# <<< aseldev'
 ) -join $nl
 
