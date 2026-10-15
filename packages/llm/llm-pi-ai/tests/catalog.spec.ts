@@ -506,7 +506,8 @@ describe('catalog routes with per-model configuration', () => {
     if (built === undefined) throw new Error('the deepseek route built no provider')
     const [model] = built.getModels()
     if (model === undefined) throw new Error('the deepseek route resolved no models')
-    const context = { messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] }
+    // AselDev (pi-ai 1.2.0 compatibility): stream() now takes a branded TranscriptContext.
+    const context = { messages: [{ role: 'user' as const, content: 'hi', timestamp: 0 }] } as unknown as Parameters<typeof built.stream>[1]
 
     // `stream` is interface-required and unused by the harness adapter, which
     // only calls `streamSimple`; both must still reach the catalog provider.

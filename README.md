@@ -74,6 +74,7 @@ That's it. From now on, use **`start-aseldev.cmd`** to start.
 | Start the app | Double-click `start-aseldev.cmd`, then open http://127.0.0.1:3080 |
 | Stop the app | Close its window (or press `Ctrl+C` in it) |
 | Apply code changes | Double-click `rebuild-aseldev.cmd` |
+| Check everything like a fresh clone (after a pull from DeepSeek, or when another computer fails to build) | `.\rebuild-aseldev.cmd full` |
 | Get changes made on another computer | `git pull`, then `rebuild-aseldev.cmd` |
 | Save and share my changes | `git add -A`, `git commit -m "…"`, `git push` |
 
@@ -133,6 +134,7 @@ AselDev uses its own `.dsh-aseldev` folder, so it never clashes with the officia
 | Brain | `packages/knowledge/*`, `packages/client/ui-brain`, `packages/client/ui-settings-plugins` (`BrainCard.tsx`) |
 | Skills page | `packages/client/ui-skills-manager`, `aseldev/plugins/skills-manager` |
 | Artifacts | `packages/client/ui-artifacts`, `aseldev/plugins/artifacts`, plus one extra sidebar slot (`sidebar.launcher`) in `packages/client/ui-sidebar` |
+| pi-ai 1.2.0 compatibility (newer models such as `gpt-6-sol`) | `packages/llm/llm-pi-ai/package.json` + `pnpm-lock.yaml` (pi-ai `^1.2.0`), and small type fixes in `src/catalog.ts`, `src/replay.ts`, `src/sign-in.ts`, `src/stream.ts`, `tests/catalog.spec.ts` (marked `AselDev (pi-ai 1.2.0 compatibility)`). If DeepSeek upgrades pi-ai themselves, take **their** version of these files. |
 | Wiring | `tsconfig.client.json`, `packages/bundle/web-app/cordis.patch.yml` and `package.json` |
 
 ## 6. Troubleshooting

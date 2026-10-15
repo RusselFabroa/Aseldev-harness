@@ -159,7 +159,9 @@ export class ProviderSignIn {
   private async refresh(stored: StoredCredential): Promise<string> {
     let next: OAuthCredential
     try {
-      next = await this.options.oauth.refresh(stored)
+      // AselDev (pi-ai 1.2.0 compatibility): refresh now takes a signal; a
+      // never-aborted one keeps the old behaviour (no extra timeout).
+      next = await this.options.oauth.refresh(stored, new AbortController().signal)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.options.warn(`llm-pi-ai: refreshing the "${this.options.provider}" sign-in failed: ${message}`)
@@ -238,7 +240,8 @@ export class ProviderSignIn {
       progressed,
       done: Promise.resolve(),
     }
-    const interaction: AuthInteraction = {
+    // AselDev (pi-ai 1.2.0 compatibility): login needs `signal` set, as it already is here.
+    const interaction: AuthInteraction & { signal: AbortSignal } = {
       signal: abort.signal,
       prompt: prompt => this.prompt(flow, prompt),
       notify: (event) => {

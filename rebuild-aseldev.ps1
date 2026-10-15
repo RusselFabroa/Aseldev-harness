@@ -5,6 +5,13 @@
 #    %USERPROFILE%\.dsh-aseldev\last-build.log, UTF-8)
 # 3. aseldev\setup-profile.ps1 (points the profile at this folder's plugins)
 # 4. runs start-aseldev.cmd (its output goes to last-start.log)
+#
+# Full check: `rebuild-aseldev.cmd full` first deletes the TypeScript build
+# cache (lib\tsconfig.tsbuildinfo in every package), so every package is
+# type-checked again, exactly as on a fresh clone. Use it after a git pull or
+# merge from DeepSeek, or when another computer's build fails but this one's
+# passes. Takes a few minutes longer.
+param([string]$Mode = '')
 $env:DSH_HOME = Join-Path $env:USERPROFILE '.dsh-aseldev'
 Set-Location $PSScriptRoot
 New-Item -ItemType Directory -Force -Path $env:DSH_HOME | Out-Null
@@ -22,6 +29,16 @@ foreach ($tool in 'node', 'pnpm') {
 Write-Host 'Stopping the AselDev server on port 3080 (if it is running)...'
 Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue |
   ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+
+if ($Mode -eq 'full') {
+  Write-Host 'Full check: clearing the TypeScript build cache...'
+  # Exact cache locations only (no recursive walk into node_modules).
+  $caches = 'tsconfig.*.tsbuildinfo', 'packages\*\*\lib\*.tsbuildinfo', 'apps\*\lib\*.tsbuildinfo',
+    'apps\*\lib\types\*.tsbuildinfo', 'vendor\*\lib\*.tsbuildinfo'
+  $found = @(Get-Item -Path ($caches | ForEach-Object { Join-Path $PSScriptRoot $_ }) -ErrorAction SilentlyContinue)
+  $found | Remove-Item -Force -ErrorAction SilentlyContinue
+  Write-Host "  removed $($found.Count) cache files"
+}
 
 $out = New-Object System.Collections.Generic.List[string]
 Write-Host 'Installing packages (pnpm install)...'

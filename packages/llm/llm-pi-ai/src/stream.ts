@@ -109,6 +109,14 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
       const text = message.errorMessage ?? 'pi-ai stream error'
       return { kind: 'error', failure: { message: text, code: classifyPiAiError(text) } }
     }
+    // AselDev (pi-ai 1.2.0 compatibility): 1.2.0 adds "pending" and "deferred"
+    // (deferred/background responses, which the harness never requests). Were
+    // one to end a turn, report it as an error instead of returning nothing.
+    default:
+      return {
+        kind: 'error',
+        failure: { message: `pi-ai ended the response with unexpected stop reason "${String(message.stopReason)}"`, code: 'PI_AI_ERROR' },
+      }
   }
 }
 

@@ -86,8 +86,10 @@ type PiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFormat']>
 /**
  * pi-ai thinking formats a profile cannot name: both drive the request through
  * `chatTemplateKwargs`, which this configuration does not expose.
+ * AselDev (pi-ai 1.2.0 compatibility): `baseten` (added upstream in pi-ai 0.84)
+ * is withheld too, so the offered set stays exactly what it was on 0.82.1.
  */
-type WithheldThinkingFormat = 'chat-template' | 'qwen-chat-template'
+type WithheldThinkingFormat = 'chat-template' | 'qwen-chat-template' | 'baseten'
 
 /** One reasoning-dispatch wire format a profile may name. */
 export type PiAiThinkingFormat = Exclude<PiThinkingFormat, WithheldThinkingFormat>
