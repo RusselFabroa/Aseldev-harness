@@ -133,43 +133,6 @@
   overflow-y: auto;
 }
 
-/* Search row pinned above the provider-grouped list: the field stays put
-   while the rows scroll, so a query never scrolls out of view. */
-.search {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 4px 6px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.searchIcon {
-  flex: 0 0 auto;
-}
-
-.searchInput {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  outline: none;
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.searchInput::placeholder {
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.searchInput:focus {
-  border-color: var(--dsw-alias-border-l3);
-}
-
 .group + .group {
   margin-top: 4px;
 }
