@@ -1,0 +1,29 @@
+{
+  "name": "@aseldev/dsh-teams",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AselDev teams: durable per-session team assignments with real subagent workers, plus the sidebar status panel in the dsh web GUI.",
+  "type": "module",
+  "main": "./lib/host.js",
+  "exports": {
+    ".": "./lib/host.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --check",
+    "smoke": "node browser-smoke.mjs",
+    "smoke:fixtures": "node browser-smoke.mjs --fixtures",
+    "typecheck": "node typecheck.mjs",
+    "test:unit": "node --test test.mjs engine.test.mjs host.test.mjs",
+    "test:composition": "node --test composition.test.mjs",
+    "test:setup": "node --test setup.test.mjs",
+    "test": "node build.mjs && npm run typecheck && npm run test:unit && npm run test:composition && npm run test:setup"
+  }
+}

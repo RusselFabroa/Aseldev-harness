@@ -1,0 +1,68 @@
+[
+  {
+    "role": "coordinator",
+    "parentRole": null,
+    "eventTypes": [
+      "agent/inbox/spliced",
+      "assistant/chunk",
+      "assistant/message",
+      "request/context",
+      "request/header",
+      "session/title",
+      "step/end",
+      "step/start",
+      "tool/call",
+      "tool/result",
+      "turn/end",
+      "turn/start",
+      "user/message"
+    ],
+    "coordination": "Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\nFor multi-agent work in ordinary coordinator conversations, use team_manage and saved specialists rather than ad hoc delegation; start with status; declare file scopes; report actual checks. Team workers only execute own assignment.",
+    "assignment": null,
+    "userText": [
+      "Set up a reader teammate and give it the assignment."
+    ],
+    "assistantText": [
+      "COORDINATOR_DONE"
+    ],
+    "toolNames": [
+      "team_manage",
+      "team_manage"
+    ],
+    "toolResults": [
+      "Specialists: researcher (read) Researcher; builder (write) Builder; reviewer (read) Reviewer; worker (write) Worker\nNo team yet in this conversation: an \"assign\" creates one.",
+      "Specialists: researcher (read) Researcher; builder (write) Builder; reviewer (read) Reviewer; worker (write) Worker\nTeam: running; 1 of 2 slot(s) busy; 1 assignment(s).\n- [starting] <task> \"Reader pass\" — worker; paths note.txt"
+    ]
+  },
+  {
+    "role": "worker",
+    "parentRole": "coordinator",
+    "eventTypes": [
+      "agent/inbox/spliced",
+      "assistant/chunk",
+      "assistant/message",
+      "request/context",
+      "request/header",
+      "session/end-seed",
+      "session/title",
+      "step/end",
+      "step/start",
+      "subagent/descriptor",
+      "turn/end",
+      "turn/start",
+      "user/message"
+    ],
+    "coordination": "Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\nFor multi-agent work in ordinary coordinator conversations, use team_manage and saved specialists rather than ad hoc delegation; start with status; declare file scopes; report actual checks. Team workers only execute own assignment.\n\nYou are a delegated subagent: your permission scope was fixed when you were started and cannot be widened from inside this session — operations that require approval are rejected automatically. When the task needs access beyond that scope, do not retry the denied operation; state the limitation in your reply so the delegating agent can handle it.",
+    "assignment": "Assignment: Reader pass\n\nAnswer from the assignment only. Literal {{placeholder}} must survive.\n\nAnswer with WORKER_SEES.\n\nReserved paths: note.txt. Other workers are blocked from overlapping paths; stay inside these, or report that the assignment is wrong rather than widening it.",
+    "userText": [
+      "Assignment: Reader pass\n\nAnswer from the assignment only. Literal {{placeholder}} must survive.\n\nAnswer with WORKER_SEES.\n\nReserved paths: note.txt. Other workers are blocked from overlapping paths; stay inside these, or report that the assignment is wrong rather than widening it.",
+      "Run the same assignment again."
+    ],
+    "assistantText": [
+      "WORKER_FIRST: Assignment: Reader pass\n\nAnswer from the assignment only. Literal {{placeholder}} must survive.\n\nAnswer with WORKER_SEES.\n\nReserved paths: note.txt. Other workers are blocked from overlapping paths; stay inside these, or report that the assignment is wrong rather than widening it.",
+      "WORKER_AGAIN: second pass"
+    ],
+    "toolNames": [],
+    "toolResults": []
+  }
+]

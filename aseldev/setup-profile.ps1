@@ -18,6 +18,14 @@ New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
 function FileUrl([string]$path) { ([System.Uri](Resolve-Path -LiteralPath $path).Path).AbsoluteUri }
 function Quote([string]$text) { "'" + ($text -replace "'", "''") + "'" }
 
+# An external dual-face package is discoverable by the existing client registry.
+# Keep its install link and build outside upstream workspace manifests.
+$teamsDir = Join-Path $repo 'aseldev\plugins\teams'
+& node (Join-Path $teamsDir 'build.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Team client build failed; the profile patch was not changed.' }
+& node (Join-Path $teamsDir 'link-profile.mjs') $DshHome
+if ($LASTEXITCODE -ne 0) { throw 'Team package linking failed; the profile patch was not changed.' }
+
 $skillsDir = Join-Path $repo 'aseldev\skills'
 $nl = "`r`n"
 $block = @(
@@ -40,6 +48,12 @@ $block = @(
   '# Brain tools (brain_search, brain_read) for every agent in every preset.',
   '    - id: aseldev-tool-brain',
   '      name: ''@deepseek-ai/dsh-tool-brain''',
+  '# Persistent specialist teams, coordinator tools, and sidebar status panel.',
+  '    - id: aseldev-teams',
+  '      name: ''@aseldev/dsh-teams''',
+  '      config:',
+  '        maxActive: 3',
+  '        maxLimit: 12',
   '# <<< aseldev'
 ) -join $nl
 

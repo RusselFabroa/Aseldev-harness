@@ -1,0 +1,38 @@
+# The external addon stays outside workspace manifests; its owning test builds
+# the installed entry before launching this source-host fixture.
+# Each smoke uses a temporary cwd so neither store touches the user's home.
+- id: fixture
+  name: './fixture.ts'
+
+- id: subagent
+  name: '@deepseek-ai/dsh-subagent'
+
+- id: subagent-spawn
+  name: '@deepseek-ai/dsh-subagent-spawn-in-process'
+
+- id: agent-spine
+  name: '@deepseek-ai/dsh-agent-spine-demo'
+  config:
+    agents:
+      - id: main
+        provider: mock
+        model: mock-delegate
+        cwd: !!js process.cwd()
+    persona: 'Coordinate the assigned team task.'
+    workspaceContext: false
+
+- id: persistence
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: !!js process.cwd() + '/.sessions'
+    compression: none
+
+- id: checkpoint-policy
+  name: '@deepseek-ai/dsh-session-checkpoint-policy'
+
+- id: teams
+  name: '../../../../../../aseldev/plugins/teams/lib/host.js'
+  config:
+    dir: !!js process.cwd() + '/.teams'
+    maxActive: 2
+    maxLimit: 4
