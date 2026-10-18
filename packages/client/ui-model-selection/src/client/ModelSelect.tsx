@@ -3,8 +3,10 @@
  * Two-level selection per figma 496:26454's MenuDropdown: the root menu is
  * the Model / Effort row pair (label + current value + a right chevron),
  * each drilling into its own list — the provider-grouped model list over
- * the shared directory, and the effort levels. The trigger (313:14108's
- * ToggleButton) shows both: model name + effort in the caption tone.
+ * the shared directory, and the effort levels. The model list carries a
+ * search field that narrows the rows by name, id, description, or provider;
+ * the trigger (313:14108's ToggleButton) shows both: model name + effort in
+ * the caption tone.
  * Data and submission ride the SAME per-session ModelDirectory as the
  * /model popup; exact-model reasoning metadata and the selected effort come
  * from the Host rather than a client-owned vocabulary. A rejected selection
@@ -19,7 +21,7 @@ import clsx from 'clsx'
 import type { ModelReasoningEffort, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   IconCheckOutline16, IconChevronDownOutline14, IconChevronRightOutline14,
-  IconWarningOutline16, Toast,
+  IconSearchOutline16, IconWarningOutline16, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelSelectInjected } from './slots.ts'
@@ -52,6 +54,8 @@ export function ModelSelect(
   )
   const [open, setOpen] = useState(false)
   const [pane, setPane] = useState<Pane>('root')
+  /** Model-list search text; every close and reopen starts from an unfiltered list. */
+  const [query, setQuery] = useState('')
   // The in-menu error strip serves catalog loads (its Retry re-runs the
   // load); a rejected SELECTION announces through the transient toast
   // instead, so the strip renders only while the latest failure-capable
@@ -61,6 +65,7 @@ export function ModelSelect(
   const toastSeq = useRef(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
 
@@ -76,6 +81,23 @@ export function ModelSelect(
           : { reasoningEffort: model.reasoning.defaultEffort },
       } satisfies ModelSelection,
     }))), [state.groups])
+  // Rows the search field keeps: a group survives while it still holds a
+  // matching model, and a query matching the provider name keeps all of its
+  // rows. The trigger label above always reads the unfiltered choices, so a
+  // narrowed list never changes what the current selection is.
+  const filtering = query.trim() !== ''
+  const filteredGroups = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (needle === '') return state.groups
+    return state.groups.flatMap((group) => {
+      const models = group.models.filter(model => model.name.toLowerCase().includes(needle)
+        || model.id.toLowerCase().includes(needle)
+        || model.description?.toLowerCase().includes(needle) === true
+        || group.name.toLowerCase().includes(needle))
+      return models.length === 0 ? [] : [{ ...group, models }]
+    })
+  }, [state.groups, query])
+  const filteredCount = filteredGroups.reduce((total, group) => total + group.models.length, 0)
   const selectedIndex = state.current === null
     ? -1
     : choices.findIndex(c => c.selection.provider === state.current?.provider && c.selection.model === state.current.model)
@@ -124,10 +146,17 @@ export function ModelSelect(
     return () => { document.removeEventListener('mousedown', closeOutside) }
   }, [open])
 
+  // Drilling into the model pane puts the caret in the search field: typing is
+  // then the immediate gesture, and the list scrolls under a fixed field.
+  useEffect(() => {
+    if (open && pane === 'model') searchRef.current?.focus()
+  }, [open, pane])
+
   if (!available) return null
 
   const show = (): void => {
     setPane('root')
+    setQuery('')
     setOpen(true)
     reload()
   }
@@ -135,6 +164,7 @@ export function ModelSelect(
   const close = (restoreFocus = false): void => {
     setOpen(false)
     setPane('root')
+    setQuery('')
     if (restoreFocus) queueMicrotask(() => { triggerRef.current?.focus() })
   }
 
@@ -142,15 +172,21 @@ export function ModelSelect(
     const items = itemRefs.current.filter(item => item !== null)
     if (items.length === 0) return
     const active = items.findIndex(item => item === document.activeElement)
-    const next = (Math.max(active, 0) + offset + items.length) % items.length
+    // Focus parked in the search field is no row at all: Down enters the list
+    // at the first row, Up at the last.
+    const next = active < 0
+      ? offset > 0 ? 0 : items.length - 1
+      : (active + offset + items.length) % items.length
     items[next]?.focus()
   }
 
   const onRootKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key === 'Escape' && open) {
       event.preventDefault()
-      // Escape backs out of a drilled pane first, then closes.
-      if (pane !== 'root') setPane('root')
+      // Escape clears a typed query first, then backs out of a drilled pane,
+      // then closes.
+      if (filtering) setQuery('')
+      else if (pane !== 'root') setPane('root')
       else close(true)
       return
     }
@@ -268,6 +304,19 @@ export function ModelSelect(
 
           {pane === 'model' && (
             <>
+              <div className={css.search}>
+                <IconSearchOutline16 className={css.searchIcon} />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  role="searchbox"
+                  className={css.searchInput}
+                  aria-label={t('search.aria')}
+                  placeholder={t('search.placeholder')}
+                  value={query}
+                  onChange={(event) => { setQuery(event.target.value) }}
+                />
+              </div>
               {state.status === 'loading' && (
                 <div className={css.status}>{t('status.loading')}</div>
               )}
@@ -284,7 +333,7 @@ export function ModelSelect(
                 </div>
               ))}
               <div className={clsx(css.groups, 'scrollable')}>
-                {state.groups.map((group) => {
+                {filteredGroups.map((group) => {
                   const headingId = `${id}-${group.id}`
                   return (
                     <section role="group" aria-labelledby={headingId} className={css.group} key={group.id}>
@@ -319,8 +368,8 @@ export function ModelSelect(
                   )
                 })}
               </div>
-              {state.status === 'ready' && choices.length === 0 && (
-                <div className={css.empty}>{t('empty.models')}</div>
+              {state.status === 'ready' && filteredCount === 0 && (
+                <div className={css.empty}>{filtering ? t('empty.filter') : t('empty.models')}</div>
               )}
             </>
           )}
