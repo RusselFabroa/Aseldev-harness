@@ -149,7 +149,7 @@ try {  const coordinator = ctx.agents.list()[0]
         eventTypes: [...new Set(events.map(event => String(event.type)))].sort(),
         // The two prompt contributions this snapshot pins: the coordination
         // context and the assignment the worker was handed.
-        coordination: userText.find(text => text.includes('For multi-agent work')) ?? null,
+        coordination: userText.find(text => text.includes('Auto-continue budget') || text.includes('team worker')) ?? null,
         assignment: userText.find(text => text.startsWith('Assignment:')) ?? null,
         userText: texts('user/message', (data) => {
           const kind = (data.source as { kind?: unknown } | undefined)?.kind

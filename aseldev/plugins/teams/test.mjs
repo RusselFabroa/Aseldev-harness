@@ -131,15 +131,25 @@ await test('the parallel-limit field never advertises a guessed number', () => {
 
 // --- apply: registrations, dictionaries, injected face ---------------------
 
-/** A fake client context recording every registration the plugin makes. */
-function fakeContext({ retainedAddress = undefined, refreshRejects = false } = {}) {
+/** Let one settled request reach its `.then`: microtasks drain before the next macrotask. */
+const settle = () => new Promise((resolve) => { setImmediate(resolve) })
+
+/**
+ * A fake client context recording every registration the plugin makes.
+ * @param {{retainedAddress?: object, refreshRejects?: boolean, launcherAnswer?: {status: number, body?: unknown}}} [options] - stand-in answers.
+ * @returns {{ctx: object, calls: object, fetched: object[], restore: () => void}} the context, its recording, and the fetch teardown.
+ */
+function fakeContext({ retainedAddress = undefined, refreshRejects = false, launcherAnswer = { status: 200, body: { showLauncher: true } } } = {}) {
   const calls = {
     locale: [],
     injectedSlots: [],
+    registrations: [],
     opened: [],
     openedSubagent: [],
     refreshed: [],
   }
+  // `apply` reads the launcher flag once; every apply test drives that answer here.
+  const fetchDouble = stubFetch(() => launcherAnswer)
   const ctx = {
     slots: {
       inject(name, callback) {
@@ -148,6 +158,7 @@ function fakeContext({ retainedAddress = undefined, refreshRejects = false } = {
         return () => {}
       },
       register(options, component) {
+        calls.registrations.push({ options, component })
         calls.registerOptions = options
         calls.component = component
         return () => {}
@@ -179,73 +190,194 @@ function fakeContext({ retainedAddress = undefined, refreshRejects = false } = {
       },
     },
     effect(callback) {
-      calls.effectDisposer = callback()
+      calls.effectDisposers ??= []
+      calls.effectDisposers.push(callback())
       return () => {}
     },
   }
-  return { ctx, calls }
+  return { ctx, calls, fetched: fetchDouble.calls, restore: () => { fetchDouble.restore() } }
 }
 
-await test('apply registers its dictionaries under one namespace', () => {
-  const { ctx, calls } = fakeContext()
-  plugin.apply(ctx)
-  assert.equal(calls.locale.length, 1)
-  assert.equal(calls.locale[0].namespace, NS)
-  assert.deepEqual(calls.locale[0].dictionaries, { zh: plugin.zh, en: plugin.en })
-  assert.equal(calls.bound, NS, 'the translate seat binds the same namespace')
+await test('apply registers its dictionaries under one namespace', async () => {
+  const { ctx, calls, restore } = fakeContext()
+  try {
+    plugin.apply(ctx)
+    await settle()
+    assert.equal(calls.locale.length, 1)
+    assert.equal(calls.locale[0].namespace, NS)
+    assert.deepEqual(calls.locale[0].dictionaries, { zh: plugin.zh, en: plugin.en })
+    assert.equal(calls.bound, NS, 'the translate seat binds the same namespace')
+  } finally {
+    restore()
+  }
 })
 
-await test('apply contributes one sidebar.launcher entry with its locale seat', () => {
-  const { ctx, calls } = fakeContext()
-  plugin.apply(ctx)
-  assert.deepEqual(calls.injectedSlots, ['sidebar.launcher'])
-  const options = calls.registerOptions
-  assert.equal(options.name, 'sidebar.launcher')
-  assert.equal(options.id, 'teams')
-  assert.equal(options.order, 20)
-  assert.equal(options.locale, NS)
-  assert.equal(typeof calls.component, 'function')
-  const face = options.inject()
-  assert.equal(typeof face.api.state, 'function')
-  assert.equal(typeof face.api.action, 'function')
-  assert.equal(typeof face.openSession, 'function')
-  assert.equal(typeof face.openWorker, 'function')
-  assert.equal(face.t, undefined, 'the framework locale seat supplies `t`, not the inject face')
+await test('apply contributes one sidebar.launcher entry with its locale seat', async () => {
+  const { ctx, calls, restore } = fakeContext()
+  try {
+    plugin.apply(ctx)
+    await settle()
+    assert.deepEqual(calls.injectedSlots, ['settings.section', 'sidebar.launcher'], 'the launcher lands once the host answers')
+    const launcher = calls.registrations.find(entry => entry.options.name === 'sidebar.launcher')
+    const options = launcher.options
+    assert.equal(options.name, 'sidebar.launcher')
+    assert.equal(options.id, 'teams')
+    assert.equal(options.order, 20)
+    assert.equal(options.locale, NS)
+    assert.equal(typeof launcher.component, 'function')
+    const face = options.inject()
+    assert.equal(typeof face.api.state, 'function')
+    assert.equal(typeof face.api.action, 'function')
+    assert.equal(typeof face.openSession, 'function')
+    assert.equal(typeof face.openWorker, 'function')
+    assert.equal(face.t, undefined, 'the framework locale seat supplies `t`, not the inject face')
+  } finally {
+    restore()
+  }
+})
+
+await test('the settings section registers without waiting for the launcher read', async () => {
+  const { ctx, calls, fetched, restore } = fakeContext()
+  try {
+    plugin.apply(ctx)
+    // Before the launcher answer settles: the settings section is already there.
+    assert.deepEqual(calls.injectedSlots, ['settings.section'])
+    const section = calls.registrations.find(entry => entry.options.name === 'settings.section')
+    assert.ok(section !== undefined, 'the settings section is registered')
+    assert.equal(section.options.id, 'teams')
+    assert.equal(typeof section.options.label, 'function')
+    assert.equal(typeof section.component, 'function')
+    const face = section.options.inject()
+    assert.equal(typeof face.api.roles, 'function')
+    assert.equal(typeof face.api.saveSkill, 'function')
+    assert.equal(typeof face.api.saveSettings, 'function')
+    assert.equal(face.t, plugin.zhTranslate)
+
+    await settle()
+    assert.equal(fetched.length, 1, 'one launcher read, and nothing else at boot')
+    assert.equal(fetched[0].url, '/aseldev-teams/api/launcher')
+    assert.equal(fetched[0].init.headers['x-aseldev-teams'], '1')
+    assert.deepEqual(calls.injectedSlots, ['settings.section', 'sidebar.launcher'])
+  } finally {
+    restore()
+  }
+})
+
+await test('an explicit showLauncher: false registers no launcher and reads no flag', async () => {
+  const { ctx, calls, fetched, restore } = fakeContext()
+  try {
+    plugin.apply(ctx, { showLauncher: false })
+    await settle()
+    assert.deepEqual(calls.injectedSlots, ['settings.section'])
+    assert.equal(calls.registrations.some(entry => entry.options.name === 'sidebar.launcher'), false)
+    assert.equal(fetched.length, 0, 'the row already answered; the host is not asked')
+  } finally {
+    restore()
+  }
+})
+
+await test('a host answering showLauncher: false registers no launcher', async () => {
+  const { ctx, calls, restore } = fakeContext({ launcherAnswer: { status: 200, body: { showLauncher: false } } })
+  try {
+    plugin.apply(ctx)
+    await settle()
+    assert.deepEqual(calls.injectedSlots, ['settings.section'])
+    assert.equal(calls.registrations.some(entry => entry.options.name === 'sidebar.launcher'), false)
+  } finally {
+    restore()
+  }
+})
+
+await test('a host answering true registers the launcher even when the row says true', async () => {
+  const { ctx, calls, restore } = fakeContext({ launcherAnswer: { status: 200, body: { showLauncher: true } } })
+  try {
+    plugin.apply(ctx, { showLauncher: true })
+    await settle()
+    assert.deepEqual(calls.injectedSlots, ['settings.section', 'sidebar.launcher'])
+  } finally {
+    restore()
+  }
+})
+
+await test('an unreachable host still registers the launcher', async () => {
+  const { ctx, calls, restore } = fakeContext({ launcherAnswer: { status: 404, body: { error: 'unknown teams route' } } })
+  const previous = globalThis.fetch
+  globalThis.fetch = async () => { throw new TypeError('failed to fetch') }
+  try {
+    plugin.apply(ctx)
+    await settle()
+    assert.deepEqual(calls.injectedSlots, ['settings.section', 'sidebar.launcher'], 'a broken host never hides the panel')
+  } finally {
+    globalThis.fetch = previous
+    restore()
+  }
+})
+
+await test('launcherVisible lets the row refuse and otherwise trusts the host', () => {
+  assert.equal(plugin.launcherVisible({}, true), true)
+  assert.equal(plugin.launcherVisible({}, false), false)
+  assert.equal(plugin.launcherVisible({}, undefined), true, 'no host answer keeps the entry')
+  assert.equal(plugin.launcherVisible({ showLauncher: false }, true), false, 'an explicit row setting wins')
+  assert.equal(plugin.launcherVisible({ showLauncher: true }, false), false, 'the host can still say no')
 })
 
 await test('openSession opens an ordinary session through the runtime', async () => {
-  const { ctx, calls } = fakeContext()
-  plugin.apply(ctx)
-  await calls.registerOptions.inject().openSession('coordinator-1')
-  assert.deepEqual(calls.opened, ['coordinator-1'])
+  const { ctx, calls, restore } = fakeContext()
+  try {
+    plugin.apply(ctx)
+    await settle()
+    const launcher = calls.registrations.find(entry => entry.options.name === 'sidebar.launcher')
+    await launcher.options.inject().openSession('coordinator-1')
+    assert.deepEqual(calls.opened, ['coordinator-1'])
+  } finally {
+    restore()
+  }
 })
 
 await test('openWorker opens a continuable child through openSubagent, never a bare open', async () => {
-  const { ctx, calls } = fakeContext()
-  plugin.apply(ctx)
-  await calls.registerOptions.inject().openWorker('coordinator-1', 'worker-9')
-  assert.deepEqual(calls.opened, [], 'a subagent child must not go through sessions.open')
-  assert.deepEqual(calls.openedSubagent, [
-    { parentSessionId: 'coordinator-1', childSessionId: 'worker-9', mode: 'continuable' },
-  ])
-  assert.deepEqual(calls.refreshed, ['coordinator-1'], 'the child catalog is made authoritative first')
+  const { ctx, calls, restore } = fakeContext()
+  try {
+    plugin.apply(ctx)
+    await settle()
+    const launcher = calls.registrations.find(entry => entry.options.name === 'sidebar.launcher')
+    await launcher.options.inject().openWorker('coordinator-1', 'worker-9')
+    assert.deepEqual(calls.opened, [], 'a subagent child must not go through sessions.open')
+    assert.deepEqual(calls.openedSubagent, [
+      { parentSessionId: 'coordinator-1', childSessionId: 'worker-9', mode: 'continuable' },
+    ])
+    assert.deepEqual(calls.refreshed, ['coordinator-1'], 'the child catalog is made authoritative first')
+  } finally {
+    restore()
+  }
 })
 
 await test('openWorker reuses an address the runtime already retained', async () => {
   const retained = { parentSessionId: 'coordinator-1', childSessionId: 'worker-with-address', mode: 'continuable' }
-  const { ctx, calls } = fakeContext({ retainedAddress: retained })
-  plugin.apply(ctx)
-  await calls.registerOptions.inject().openWorker('coordinator-1', 'worker-with-address')
-  assert.deepEqual(calls.openedSubagent, [retained])
-  assert.deepEqual(calls.refreshed, [], 'a retained address needs no refresh')
-  assert.deepEqual(calls.opened, [])
+  const { ctx, calls, restore } = fakeContext({ retainedAddress: retained })
+  try {
+    plugin.apply(ctx)
+    await settle()
+    const launcher = calls.registrations.find(entry => entry.options.name === 'sidebar.launcher')
+    await launcher.options.inject().openWorker('coordinator-1', 'worker-with-address')
+    assert.deepEqual(calls.openedSubagent, [retained])
+    assert.deepEqual(calls.refreshed, [], 'a retained address needs no refresh')
+    assert.deepEqual(calls.opened, [])
+  } finally {
+    restore()
+  }
 })
 
 await test('openWorker surfaces a catalog-refresh failure instead of opening blindly', async () => {
-  const { ctx, calls } = fakeContext({ refreshRejects: true })
-  plugin.apply(ctx)
-  await assert.rejects(calls.registerOptions.inject().openWorker('coordinator-1', 'worker-9'), /catalog refresh failed/)
-  assert.deepEqual(calls.openedSubagent, [], 'no address is opened after a failed refresh')
+  const { ctx, calls, restore } = fakeContext({ refreshRejects: true })
+  try {
+    plugin.apply(ctx)
+    await settle()
+    const launcher = calls.registrations.find(entry => entry.options.name === 'sidebar.launcher')
+    await assert.rejects(launcher.options.inject().openWorker('coordinator-1', 'worker-9'), /catalog refresh failed/)
+    assert.deepEqual(calls.openedSubagent, [], 'no address is opened after a failed refresh')
+  } finally {
+    restore()
+  }
 })
 
 await test('workerOpenPlan prefers a retained address and otherwise reconstructs one', () => {
@@ -255,6 +387,36 @@ await test('workerOpenPlan prefers a retained address and otherwise reconstructs
     address: { parentSessionId: 'p', childSessionId: 'c', mode: 'continuable' },
     refreshParent: true,
   })
+})
+
+await test('orbitRoles folds a task state onto each role, ignoring task detail', () => {
+  const specialists = [
+    { id: 'backend', name: 'Senior Backend', instructions: '', mode: 'write' },
+    { id: 'frontend', name: 'Senior Frontend', instructions: '', mode: 'write' },
+    { id: 'qa', name: 'Senior QA', instructions: '', mode: 'read' },
+  ]
+  const task = (id, status, specialistId, workerId) => ({
+    id,
+    specialistId,
+    status,
+    ...(workerId === undefined ? {} : { workerId }),
+  })
+  const team = {
+    sessionId: 's',
+    maxActive: 3,
+    paused: false,
+    tasks: [
+      task('t1', 'working', 'backend', 'w1'),
+      task('t2', 'queued', 'frontend'),
+      task('t3', 'failed', 'qa'),
+    ],
+  }
+  assert.deepEqual(plugin.orbitRoles(team, specialists).map(role => [role.id, role.state, role.workerId ?? null]), [
+    ['backend', 'working', 'w1'],
+    ['frontend', 'queued', null],
+    ['qa', 'blocked', null],
+  ])
+  assert.deepEqual(plugin.orbitRoles(null, specialists).map(role => role.state), ['idle', 'idle', 'idle'])
 })
 
 // --- wire boundary ---------------------------------------------------------

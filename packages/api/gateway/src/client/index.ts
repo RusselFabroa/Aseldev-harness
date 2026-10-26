@@ -422,6 +422,8 @@ type InvokeRemote = (
   args: readonly unknown[],
 ) => Promise<RemoteResult<unknown>>
 
+const INSTALL_REMOTE_METHOD = Symbol('remote namespace method registration')
+
 class RemoteNamespaceService extends Service {
   private readonly methods = new Map<string, RemoteMethodRecord>()
   private readonly namespace: string
@@ -457,16 +459,16 @@ class RemoteNamespaceService extends Service {
   }
 
   installDirect(descriptor: InvocationDescriptor, token: MountToken): void {
-    this.install(descriptor.method, 'direct', { descriptor, token })
+    this[INSTALL_REMOTE_METHOD](descriptor.method, 'direct', { descriptor, token })
   }
 
   installScoped(descriptor: InvocationDescriptor, projection: ScopedProjection, token: MountToken): void {
-    this.install(descriptor.method, 'scoped', { descriptor, projection, token })
+    this[INSTALL_REMOTE_METHOD](descriptor.method, 'scoped', { descriptor, projection, token })
   }
 
-  private install(method: string, kind: 'direct', value: DirectMethod): void
-  private install(method: string, kind: 'scoped', value: ScopedMethod): void
-  private install(method: string, kind: 'direct' | 'scoped', value: DirectMethod | ScopedMethod): void {
+  private [INSTALL_REMOTE_METHOD](method: string, kind: 'direct', value: DirectMethod): void
+  private [INSTALL_REMOTE_METHOD](method: string, kind: 'scoped', value: ScopedMethod): void
+  private [INSTALL_REMOTE_METHOD](method: string, kind: 'direct' | 'scoped', value: DirectMethod | ScopedMethod): void {
     this.assertMethodAvailable(method)
     let record = this.methods.get(method)
     const fresh = record === undefined

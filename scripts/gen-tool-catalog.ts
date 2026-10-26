@@ -61,6 +61,9 @@ import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
+import * as ToolMarket from '@deepseek-ai/dsh-tool-market'
+import { MarketService } from '@deepseek-ai/dsh-market'
+import type { MarketInstallResult, MarketSearchRequest, MarketSearchResult } from '@deepseek-ai/dsh-market'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
 import * as ToolWorkflow from '@deepseek-ai/dsh-tool-workflow'
@@ -91,6 +94,17 @@ class CatalogAttachmentStore extends AttachmentStore {
 
 const root = resolve(import.meta.dirname, '..')
 const OUT = 'docs/tool-catalog.md'
+
+/** Market seam marker: the tools' schemas do not depend on which provider is mounted. */
+class CatalogMarketService extends MarketService {
+  override search(_request: MarketSearchRequest): Promise<MarketSearchResult> {
+    return Promise.reject(new Error('gen-tool-catalog: market search is unreachable during schema harvest'))
+  }
+
+  override install(): Promise<MarketInstallResult> {
+    return Promise.reject(new Error('gen-tool-catalog: market install is unreachable during schema harvest'))
+  }
+}
 
 /**
  * Register the descriptor needed to mount schema-producing consumers. Declares
@@ -563,6 +577,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-market',
+    dir: 'tool-market',
+    source: 'packages/market/tool-market/src/index.ts',
+    requires: ['ctx.tools', 'ctx.market', 'ctx.approval (plugin_install asks before installing)'],
+    writes: ['tool/call', 'approval/asked', 'approval/decided', 'tool/result'],
+    async mount(ctx) {
+      // Mount the seam so both tools register. Their schemas do not depend on
+      // which provider backs search and install.
+      await ctx.plugin(CatalogMarketService)
+      await ctx.plugin(ToolMarket)
+    },
+    note:
+      'plugin_install routes through the approval seam and fails closed without an answerer; the catalog records the schema, not that deployment choice.',
   },
 ]
 

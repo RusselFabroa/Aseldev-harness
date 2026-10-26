@@ -1,0 +1,24 @@
+{
+  "name": "@aseldev/dsh-office",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AselDev office: this conversation's team assignments as a live isometric office in the dsh web GUI.",
+  "type": "module",
+  "main": "./lib/host.js",
+  "exports": {
+    ".": "./lib/host.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --check",
+    "test:unit": "node --test host.test.mjs client.test.mjs",
+    "test": "node build.mjs && npm run test:unit"
+  }
+}

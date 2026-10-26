@@ -26,6 +26,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Team client build failed; the profile patch wa
 & node (Join-Path $teamsDir 'link-profile.mjs') $DshHome
 if ($LASTEXITCODE -ne 0) { throw 'Team package linking failed; the profile patch was not changed.' }
 
+# The office scene is a second external dual-face package: built and linked the
+# same way, so its read-only route and the linked client package ship together.
+$officeDir = Join-Path $repo 'aseldev\plugins\office'
+& node (Join-Path $officeDir 'build.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Office build failed; the profile patch was not changed.' }
+& node (Join-Path $officeDir 'link-profile.mjs') $DshHome
+if ($LASTEXITCODE -ne 0) { throw 'Office package linking failed; the profile patch was not changed.' }
+
 $skillsDir = Join-Path $repo 'aseldev\skills'
 $nl = "`r`n"
 $block = @(
@@ -54,6 +62,16 @@ $block = @(
   '      config:',
   '        maxActive: 3',
   '        maxLimit: 12',
+  '        # Writing workers may delegate (start subagents). Nested workers are',
+  '        # outside the team scheduler''s reservations and concurrency limit.',
+  '        workerDelegation: true',
+  '        # The office owns the sidebar entry in this profile; the Team panel',
+  '        # still exists and keeps every action. Flip to true for both entries.',
+  '        showLauncher: false',
+  '# Isometric office: this conversation''s team assignments as a live office scene.',
+  '# It registers the sidebar entry the teams row above gives up.',
+  '    - id: aseldev-office',
+  '      name: ''@aseldev/dsh-office''',
   '# <<< aseldev'
 ) -join $nl
 

@@ -428,6 +428,18 @@
         fetch: false
         searchTimeoutMs: 60000
 
+    # The plugin marketplace, in its three capability roles: the seam's Remote
+    # gateway, its npm provider, and the model-facing tools. Installs target the
+    # `web` profile unless a later layer overrides the provider's `profile`.
+    - id: market
+      name: '@deepseek-ai/dsh-market'
+
+    - id: market-npm
+      name: '@deepseek-ai/dsh-market-npm'
+
+    - id: tool-market
+      name: '@deepseek-ai/dsh-tool-market'
+
     # ── rows every mode mounts, whose values each overlay may state ──────────────
 
     # The tool registry. Presentation mode is a deployment choice; omitting it here

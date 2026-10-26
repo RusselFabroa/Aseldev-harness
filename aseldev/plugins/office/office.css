@@ -1,0 +1,569 @@
+/*
+ * ASELDEV AI HQ office panel.
+ *
+ * Every rule is scoped under the .aseldev-office root class (the fixed overlay)
+ * so the dsh web shell is untouched; the panel's palette is the reference's
+ * dark pixel-art office, kept as local custom properties instead of shell
+ * tokens.
+ *
+ * The plugin bundle cannot import CSS (a tsdown browser bundle without
+ * @tsdown/css rejects a .css import), so this file is the maintainable source
+ * and client.tsx carries the same text as OFFICE_CSS, injected as one <style>
+ * element on open. client.test.mjs fails when the two drift apart.
+ */
+
+.aseldev-office {
+  --o-bg: #0a0e14;
+  --o-line: #283241;
+  --o-text: #e8eef6;
+  --o-muted: #9aa9bc;
+  --o-cyan: #37bfff;
+  --o-amber: #ffcb85;
+  --o-red: #f2929c;
+
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  background: rgb(5 10 18 / 78%);
+  color: var(--o-text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+.aseldev-office *,
+.aseldev-office *::before,
+.aseldev-office *::after { box-sizing: border-box; }
+
+.aseldev-office .office-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(96vw, 1500px);
+  height: min(92vh, 980px);
+  overflow: hidden;
+  border: 1px solid var(--o-line);
+  border-radius: 12px;
+  background: var(--o-bg);
+  box-shadow: 0 30px 100px rgb(0 0 0 / 60%);
+}
+
+/* ---------------------------------------------------------------- header */
+
+.aseldev-office .office-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--o-line);
+  background: #111822;
+}
+
+.aseldev-office .office-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.aseldev-office .office-brand-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #2c4b62;
+  border-radius: 9px;
+  background: #142535;
+}
+
+.aseldev-office .office-brand-mark svg { width: 20px; height: 20px; }
+
+.aseldev-office .office-brand-copy { min-width: 0; }
+.aseldev-office .office-brand-copy strong { display: block; font-size: 13px; letter-spacing: .09em; }
+.aseldev-office .office-brand-copy small { display: block; margin-top: 2px; color: var(--o-muted); font-size: 10.5px; }
+
+.aseldev-office .office-metrics {
+  display: flex;
+  gap: 22px;
+  margin-left: auto;
+}
+
+.aseldev-office .office-metric { min-width: 0; }
+.aseldev-office .office-metric strong {
+  display: block;
+  font-size: 19px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.aseldev-office .office-metric span {
+  display: block;
+  margin-top: 2px;
+  color: var(--o-muted);
+  font-size: 9.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.aseldev-office .office-metric-needs strong { color: var(--o-amber); }
+
+/* ------------------------------------------------------- session selector */
+
+.aseldev-office .office-session {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.aseldev-office .office-session span {
+  color: var(--o-muted);
+  font: 9.5px/1.4 Consolas, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.aseldev-office .office-session select {
+  min-width: 0;
+  max-width: 30ch;
+  padding: 5px 8px;
+  border: 1px solid var(--o-line);
+  border-radius: 7px;
+  background: #19222e;
+  color: #d9e3ef;
+  font: inherit;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.aseldev-office .office-session select:hover { border-color: #46596f; background: #243143; }
+.aseldev-office .office-session select:focus-visible { outline: 2px solid var(--o-cyan); outline-offset: 2px; }
+
+.aseldev-office .office-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--o-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.aseldev-office .office-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--o-amber);
+  animation: office-pulse 1.6s steps(2, end) infinite;
+}
+
+/* A refused poll names the reason the host gave; a steady dot, not a pulse. */
+.aseldev-office .office-live-error {
+  max-width: 38ch;
+  overflow: hidden;
+  color: var(--o-red);
+  text-overflow: ellipsis;
+}
+.aseldev-office .office-live-error i {
+  flex: none;
+  background: var(--o-red);
+  animation: none;
+}
+
+/* --------------------------------------------------------------- viewport */
+
+.aseldev-office .office-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 48% 52%, #1c2837 0%, #111a25 44%, #0d131c 76%);
+}
+
+.aseldev-office .office-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.aseldev-office .office-svg.office-dragging { cursor: grabbing; }
+
+.aseldev-office .office-hint {
+  position: absolute;
+  top: 11px;
+  left: 13px;
+  margin: 0;
+  color: #94a6bd;
+  font: 10px/1.7 Consolas, monospace;
+  pointer-events: none;
+}
+
+.aseldev-office .office-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  pointer-events: none;
+}
+.aseldev-office .office-empty span {
+  max-width: 36ch;
+  padding: 13px 17px;
+  border: 1px dashed var(--o-line);
+  border-radius: 8px;
+  background: rgb(10 14 20 / 85%);
+  color: var(--o-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+/* ----------------------------------------------------------- scene states */
+
+.aseldev-office .office-pixels { shape-rendering: crispEdges; }
+.aseldev-office .office-station { cursor: pointer; outline: none; }
+.aseldev-office .office-station .office-selection { opacity: 0; transition: opacity .15s; }
+.aseldev-office .office-station:hover .office-selection { opacity: .45; }
+.aseldev-office .office-station.office-selected .office-selection,
+.aseldev-office .office-station:focus-visible .office-selection { opacity: 1; }
+.aseldev-office .office-station[data-status="offline"] .office-equipment { opacity: .5; }
+
+/* Plates live in their own layer above every desk, so label feedback is
+   styled on the plate itself rather than through the station's state. */
+.aseldev-office .office-label { cursor: pointer; }
+.aseldev-office .office-label:hover .office-nameplate { stroke: #8fd8ff; }
+
+.aseldev-office .office-typing { animation: office-typing .8s steps(2, end) infinite; }
+.aseldev-office .office-signal { animation: office-signal 3.3s steps(2, end) infinite; }
+.aseldev-office .office-route { stroke-dasharray: 4 8; animation: office-route 4s linear infinite; }
+/* Active work: the floor pool, desk wash, and monitor halo of a working station. */
+.aseldev-office .office-glow { animation: office-glow 2.8s ease-in-out infinite; }
+
+.aseldev-office[data-motion="off"] .office-typing,
+.aseldev-office[data-motion="off"] .office-signal,
+.aseldev-office[data-motion="off"] .office-route,
+.aseldev-office[data-motion="off"] .office-glow,
+.aseldev-office[data-motion="off"] .office-live i,
+.aseldev-office[data-motion="off"] .office-track span { animation: none; transition: none; }
+
+@keyframes office-typing {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+@keyframes office-signal {
+  0%, 100% { opacity: .45; }
+  50% { opacity: 1; }
+}
+/* Either end is a readable static glow, so motion off keeps the light. */
+@keyframes office-glow {
+  0%, 100% { opacity: .62; }
+  50% { opacity: 1; }
+}
+@keyframes office-route {
+  to { stroke-dashoffset: -48; }
+}
+@keyframes office-pulse {
+  0%, 100% { opacity: .45; }
+  50% { opacity: 1; }
+}
+
+/* ---------------------------------------------------------------- footer */
+
+.aseldev-office .office-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--o-line);
+  background: #111822;
+}
+
+.aseldev-office .office-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.aseldev-office .office-btn {
+  padding: 7px 10px;
+  border: 1px solid var(--o-line);
+  border-radius: 7px;
+  background: #19222e;
+  color: #d9e3ef;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.aseldev-office .office-btn:hover { border-color: #46596f; background: #243143; }
+.aseldev-office .office-btn[aria-pressed="true"] {
+  border-color: #37779a;
+  background: #173144;
+  color: #bce8ff;
+}
+.aseldev-office .office-btn:focus-visible,
+.aseldev-office .office-zoom input:focus-visible {
+  outline: 2px solid var(--o-cyan);
+  outline-offset: 2px;
+}
+
+.aseldev-office .office-close { padding: 5px 9px; font-size: 13px; line-height: 1; }
+
+.aseldev-office .office-zoom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+.aseldev-office .office-zoom span {
+  color: var(--o-muted);
+  font: 10px Consolas, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.aseldev-office .office-zoom input { width: 74px; accent-color: var(--o-cyan); cursor: pointer; }
+.aseldev-office .office-zoom output { min-width: 32px; color: var(--o-muted); font: 10px Consolas, monospace; }
+
+/* ------------------------------------------------------------ detail modal */
+
+.aseldev-office .office-modal {
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(88dvh, 720px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+  border: 1px solid #405168;
+  border-radius: 14px;
+  background: #141d28;
+  color: var(--o-text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+.aseldev-office .office-modal::backdrop {
+  background: rgb(5 10 18 / 78%);
+  backdrop-filter: blur(4px);
+}
+
+.aseldev-office .office-modal-id {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.aseldev-office .office-portrait-frame {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 96px;
+  height: 108px;
+  overflow: hidden;
+  border: 1px solid #344457;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #1f2f40, #17222f);
+}
+.aseldev-office .office-portrait { display: block; width: 86px; height: 96px; }
+
+.aseldev-office .office-modal-copy { min-width: 0; }
+.aseldev-office .office-modal-copy h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+.aseldev-office .office-modal-role {
+  margin: 5px 0 0;
+  color: var(--o-muted);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.aseldev-office .office-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 9px;
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.aseldev-office .office-chip::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.aseldev-office .office-modal-close { margin-left: auto; flex: none; }
+
+.aseldev-office .office-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 16px 0 0;
+}
+.aseldev-office .office-row { padding: 11px 0; border-top: 1px solid var(--o-line); }
+.aseldev-office .office-row dt {
+  margin: 0;
+  color: var(--o-muted);
+  font: 9.5px/1.5 Consolas, monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.aseldev-office .office-row dd {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.aseldev-office .office-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+.aseldev-office .office-track {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #263345;
+}
+.aseldev-office .office-track span { display: block; height: 100%; transition: width .25s; }
+
+/* -------------------------------------------------------------- job list */
+
+.aseldev-office .office-job-count {
+  margin: 0 0 9px;
+  color: var(--o-muted);
+  font: 10px/1.5 Consolas, monospace;
+  letter-spacing: .03em;
+}
+
+.aseldev-office .office-job-empty {
+  margin: 0;
+  color: var(--o-muted);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.aseldev-office .office-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A job row is the way into that job's conversation, so it is a real button. */
+.aseldev-office .office-job {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--o-line);
+  border-radius: 8px;
+  background: #182130;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.aseldev-office .office-job:hover { border-color: #46596f; background: #21303f; }
+.aseldev-office .office-job:focus-visible { outline: 2px solid var(--o-cyan); outline-offset: 2px; }
+
+.aseldev-office .office-job-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.aseldev-office .office-job-chip { margin-top: 0; padding: 2px 6px; font-size: 9.5px; }
+
+.aseldev-office .office-job-pct {
+  flex: none;
+  color: var(--o-muted);
+  font: 10px Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.aseldev-office .office-job-go {
+  flex: none;
+  color: var(--o-muted);
+  font-size: 13px;
+  line-height: 1;
+}
+.aseldev-office .office-job:hover .office-job-go { color: #bce8ff; }
+
+/* Two lines of title, then a clamp, so a long job title cannot push the bar
+   out of the row or widen the dialog on a 360 px screen. */
+.aseldev-office .office-job-title {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 6px 0 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.aseldev-office .office-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--o-line);
+  color: #7b8a9d;
+  font: 10px/1.6 Consolas, monospace;
+}
+.aseldev-office .office-meta span { white-space: nowrap; }
+
+/* -------------------------------------------------------------- narrow */
+
+@media (max-width: 820px) {
+  .aseldev-office .office-metrics {
+    order: 3;
+    justify-content: space-between;
+    width: 100%;
+    margin-left: 0;
+  }
+  .aseldev-office .office-hint { display: none; }
+  .aseldev-office .office-head { gap: 10px; }
+}
+
+@media (max-width: 460px) {
+  .aseldev-office { padding: 6px; }
+  .aseldev-office .office-panel { width: min(100vw - 12px, 1500px); height: min(94vh, 980px); }
+  .aseldev-office .office-brand-copy small { display: none; }
+  .aseldev-office .office-metric strong { font-size: 17px; }
+  .aseldev-office .office-zoom input { width: 58px; }
+  .aseldev-office .office-session select { max-width: 44vw; }
+  .aseldev-office .office-foot { padding: 8px 10px; }
+  .aseldev-office .office-modal { padding: 16px; }
+  .aseldev-office .office-modal-id { gap: 10px; }
+  .aseldev-office .office-portrait-frame { width: 72px; height: 82px; }
+  .aseldev-office .office-portrait { width: 64px; height: 72px; }
+  .aseldev-office .office-modal-copy h2 { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aseldev-office *,
+  .aseldev-office *::before,
+  .aseldev-office *::after { animation: none !important; transition: none !important; }
+}

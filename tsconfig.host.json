@@ -297,6 +297,9 @@
     { "path": "./packages/lsp/lsp" },
     { "path": "./packages/lsp/lsp-stdio" },
     { "path": "./packages/lsp/tool-lsp" },
+    { "path": "./packages/market/market" },
+    { "path": "./packages/market/market-npm" },
+    { "path": "./packages/market/tool-market" },
     { "path": "./apps/cli" }
   ]
 }

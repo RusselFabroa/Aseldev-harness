@@ -43,6 +43,11 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 
   interface TypertRemoteMap {
+    'probe/install': (
+      agentId: string,
+      request: { readonly objective: string },
+      signal?: AbortSignal,
+    ) => Promise<RemoteResult<{ readonly ref: string }>>
     'probe/create': (
       agentId: string,
       request: { readonly objective: string },
@@ -172,6 +177,28 @@ async function benchFiber(
 }
 
 describe('Client Typert API', () => {
+  it('mounts and withdraws an install endpoint alongside other namespace methods', async () => {
+    const call = vi.fn<ConnectionHandle['rpc']['call']>()
+      .mockResolvedValue({ ok: true, value: { ref: 'plugin-1' } })
+    const ctx = await bench(call)
+    const disposeInstall = await ctx.remote.$mount({
+      package: '@fixture/install',
+      descriptors: [{ ...directDescriptor(), id: '@fixture/install#probe/install', method: 'install' }],
+    })
+    const disposeCreate = await ctx.remote.$mount({ package: '@fixture/probe', descriptors: [directDescriptor()] })
+    await expect(ctx.remote.probe.install('agent-1', { objective: 'install' }))
+      .resolves.toEqual({ ok: true, value: { ref: 'plugin-1' } })
+    expect(call).toHaveBeenLastCalledWith('/api', 'probe/install', {
+      args: { agentId: 'agent-1', request: { objective: 'install' } },
+    }, expect.any(AbortSignal))
+    await disposeInstall()
+    await expect(ctx.remote.probe.create('agent-1', { objective: 'create' }))
+      .resolves.toEqual({ ok: true, value: { ref: 'plugin-1' } })
+    await disposeCreate()
+    expect(ctx.get('remote.probe')).toBeUndefined()
+    await ctx.fiber.dispose()
+  })
+
   it('mounts concrete direct methods, validates both boundaries, and withdraws retained handles', async () => {
     const call = vi.fn<ConnectionHandle['rpc']['call']>()
       .mockResolvedValue({ ok: true, value: { ref: 'goal-1' } })

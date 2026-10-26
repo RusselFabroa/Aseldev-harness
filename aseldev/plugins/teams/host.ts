@@ -14,8 +14,10 @@
  *
  *   GET  /aseldev-teams/api/state?sessionId=   → engine.state(sessionId)
  *   POST /aseldev-teams/api/action             → engine.action(...)
+ *   GET  /aseldev-teams/api/launcher           → { showLauncher }: the browser
+ *     half's boot read, because a plugin row config does not reach the page.
  *
- * Both answer only this computer and require `x-aseldev-teams: 1`.
+ * All of them answer only this computer and require `x-aseldev-teams: 1`.
  *
  * Everything here is constructed inside an ASYNC `apply`, so a store that will
  * not open or a tool whose schema is rejected fails the plugin entry instead of
@@ -28,11 +30,11 @@
  * keep meaning something — not to hold an adversary out.
  */
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 export const name = 'aseldev-teams'
@@ -65,8 +67,26 @@ export interface Config {
   readTools?: string[]
   /** Extra names denied to a `write` specialist. */
   delegationTools?: string[]
+  /**
+   * Allow a `write` specialist to use delegation tools (`subagent`,
+   * `send_message`, `workflow`, ...). Default false. Nested workers run outside
+   * the coordinator's concurrency and path-reservation coordination, so the
+   * scheduler can no longer guarantee exclusive editing scopes.
+   */
+  workerDelegation?: boolean
   /** How long `interrupt` waits for a stopped worker to become quiet. Default: 15000. */
   interruptWaitMs?: number
+  /** Folder holding role skills (`<role>/SKILL.md`). Default: the checkout's `aseldev/skills/roles`. */
+  rolesDir?: string
+  /** Default ponytail intensity passed to writing assignments. Default `full`. */
+  ponytailLevel?: 'lite' | 'full' | 'ultra'
+  /** Rounds the Project Manager may run automatically before it must report. Default 8. */
+  autoRounds?: number
+  /**
+   * Whether the browser half registers its `sidebar.launcher` entry. Default
+   * true. The AselDev profile sets it false, because the office owns that entry.
+   */
+  showLauncher?: boolean
 }
 
 // ─── engine contract (engine.mjs) ───────────────────────────────────────────
@@ -115,6 +135,8 @@ interface TeamAdapterLike {
 interface TeamEngineLike {
   state(sessionId: string): TeamStateLike
   action(sessionId: string, action: string, args?: Record<string, unknown>): Promise<TeamStateLike>
+  /** Replace the saved roster with the host's seeded defaults plus the user's custom roles. */
+  setRoster(list: readonly SpecialistLike[]): void
   settle(workerId: string, outcome: { stopReason: string; result: string }): void
   worker(workerId: string): { sessionId: string; task: TaskLike } | null
   live(sessionId: string): void
@@ -163,6 +185,8 @@ interface AgentLike {
 
 interface AgentLikeWithIdle extends AgentLike {
   whenIdle?(): Promise<void>
+  /** Present on a live Agent; `header.parentSession` marks a delegated child. */
+  session?: { readonly header?: { readonly parentSession?: unknown } }
 }
 
 interface AgentRegistryLike {
@@ -242,12 +266,13 @@ interface ContextLike {
   /** `inject` runs the callback once the named service is composed. */
   inject(deps: ['tools'], callback: (ctx: InjectedTools) => void): unknown
   inject(deps: ['systemPrompt'], callback: (ctx: InjectedPrompt) => void): unknown
+  inject(deps: ['settings'], callback: (ctx: InjectedSettings) => void): unknown
   on(event: 'subagent/end', listener: (info: SubagentEndLike) => void): () => void
   on(
     event: 'agent/pre-step',
     listener: (payload: PreStepPayloadLike, next: () => Promise<PreStepDecisionLike>) => Promise<PreStepDecisionLike>,
   ): () => void
-  on(event: 'agent/created', listener: (payload: { agent?: { id?: unknown } }) => void): () => void
+  on(event: 'agent/created', listener: (payload: { agent?: { id?: unknown; session?: { header?: { parentSession?: unknown } } } }) => void): () => void
   effect(fn: () => () => void | Promise<void>, label?: string): unknown
   logger: { info(...args: unknown[]): void; warn(...args: unknown[]): void }
 }
@@ -260,6 +285,23 @@ interface InjectedTools extends ContextLike {
 /** Context handed to an `inject(['systemPrompt'])` callback. */
 interface InjectedPrompt extends ContextLike {
   readonly systemPrompt: SystemPromptLike
+}
+
+/** Context handed to an `inject(['settings'])` callback. */
+interface InjectedSettings extends ContextLike {
+  readonly settings: SettingsServiceLike
+}
+
+/** The settings capability: one scoped namespace per plugin. */
+interface SettingsServiceLike {
+  register(ns: string, schema: unknown, options: { base: Record<string, unknown> }): SettingsScopeLike
+}
+
+/** One registered settings namespace; `get`/`watch` return the merged values. */
+interface SettingsScopeLike {
+  get(): Record<string, unknown>
+  update(value: Record<string, unknown>): void
+  watch(callback: (next: Record<string, unknown>) => void): () => void
 }
 
 // ─── constants ──────────────────────────────────────────────────────────────
@@ -305,8 +347,31 @@ const INSPECTION_TOOLS = [
   'ask_user_question',
 ]
 
-/** The standing coordination instruction, registered on every assembly. */
-const COORDINATION_TEXT = 'For multi-agent work in ordinary coordinator conversations, use team_manage and saved specialists rather than ad hoc delegation; start with status; declare file scopes; report actual checks. Team workers only execute own assignment.'
+/** Seeded role specialists; the Project Manager is the coordinator, not a worker. */
+const DEFAULT_ROLES = [
+  { id: 'backend', name: 'Senior Backend Developer', mode: 'write' as const },
+  { id: 'frontend', name: 'Senior Frontend Developer', mode: 'write' as const },
+  { id: 'qa', name: 'Senior QA', mode: 'read' as const },
+] as const
+
+/** Roster ids the plugin shipped before role skills existed. */
+const OBSOLETE_ROLE_IDS = new Set(['researcher', 'builder', 'reviewer'])
+
+/** Instruction text a role falls back to when its skill file is absent. */
+const FALLBACK_INSTRUCTIONS: Record<string, string> = {
+  backend: 'Senior backend engineer: smallest complete change, strict types, tests for non-trivial logic, report changed files and risks.',
+  frontend: 'Senior frontend engineer: smallest complete change, shared primitives and tokens, accessible names, complete states, report changed files and risks.',
+  qa: 'Senior QA: inspect and report only; findings with severity and file:line; never modify files.',
+}
+
+/** The Project Manager's standing instruction when its skill file is absent. */
+const PM_FALLBACK = 'You are the Project Manager in this conversation: plan, delegate to the saved specialists with team_manage, review their reports, and report to the user. Do not implement worker jobs yourself.'
+
+/** The standing instruction for a team worker. */
+const WORKER_COORDINATION = 'This session is a team worker: execute the assignment you were given, stay inside its reserved paths, and report results and limitations. You cannot manage the team or delegate.'
+
+/** The standing instruction for a team worker that may delegate. */
+const WORKER_COORDINATION_DELEGATING = 'This session is a team worker: execute the assignment you were given, stay inside its reserved paths, and report results and limitations. You cannot manage the team.'
 
 /**
  * Names a read worker may still call although a filter cannot vouch for them:
@@ -318,21 +383,28 @@ const READ_EXEMPT = new Set(['report', 'structured_output', CODE_MODE_TRANSPORT]
 /** Statuses during which a worker is legitimately working for the scheduler. */
 const CONVERSING_STATUSES = new Set(['starting', 'working'])
 
-/** Message sources that inject context rather than open a scheduled turn. */
-const NON_WAKING_SOURCES = new Set(['tool', 'plugin', 'subagent-report', 'subagent-settled'])
+/** Message sources that open a scheduled turn; everything else is injected context. */
+const WAKING_SOURCES = new Set(['user', 'coordinator'])
+
+/** Engine-delivered message ids remembered per worker. */
+const ADMITTED_MAX = 32
 
 const DEFAULT_MAX_ACTIVE = 3
 const DEFAULT_MAX_LIMIT = 12
 const DEFAULT_PROVIDER = 'spawn'
 const DEFAULT_INTERRUPT_WAIT_MS = 15000
-
-/** Engine-delivered message ids remembered per worker. */
-const ADMITTED_MAX = 32
+const DEFAULT_PONYTAIL_LEVEL = 'full'
+const DEFAULT_AUTO_ROUNDS = 8
 
 /** Bounds on the durable/persisted surface. */
 const MAX_BODY_BYTES = 1024 * 1024
 const RESULT_MAX_CHARS = 8000
 const BOARD_TASK_LIMIT = 40
+
+/** Upper bound on one role-skill document. */
+const ROLE_SKILL_MAX_CHARS = 64 * 1024
+/** A role id: lowercase letters, digits, and hyphens, matching the engine's ids. */
+const ROLE_ID = /^[a-z0-9][a-z0-9-]{0,79}$/
 
 const ACTIVE_STATUSES = new Set(['starting', 'working', 'canceling'])
 
@@ -626,6 +698,57 @@ function toolSet(value: unknown, label: string): ReadonlySet<string> | undefined
   return new Set(value.map(entry => (entry as string).trim()))
 }
 
+/**
+ * Find the role-skill folder: the checkout's `aseldev/skills/roles` unless the
+ * deployment overrides it. The plugin is loaded from `lib/` (built) or from
+ * `host.ts` (source tests), so the walk starts at this file and never assumes a
+ * fixed depth.
+ * @param config - plugin config; `rolesDir` wins when set.
+ * @returns the absolute roles folder.
+ */
+function resolveRolesDir(config: Config): string {
+  const explicit = config.rolesDir
+  if (explicit !== undefined && explicit.trim() !== '') return resolve(explicit)
+  let dir = dirname(fileURLToPath(import.meta.url))
+  const first = join(dir, 'aseldev', 'skills', 'roles')
+  for (let depth = 0; depth < 8; depth++) {
+    const candidate = join(dir, 'aseldev', 'skills', 'roles')
+    if (existsSync(join(candidate, 'pm', 'SKILL.md'))) return candidate
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return first
+}
+
+/** Remove a leading YAML frontmatter block, leaving the skill body. */
+function stripFrontmatter(text: string): string {
+  const match = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(text)
+  return (match === null ? text : text.slice(match[0].length)).trim()
+}
+
+const skillBodyCache = new Map<string, { mtimeMs: number; body: string | undefined }>()
+
+/**
+ * The body of one role skill file, cached by modification time so a settings
+ * edit is visible on the next assembly without re-reading a large file.
+ * @param path - absolute SKILL.md path.
+ * @returns the frontmatter-stripped body, or undefined when absent or empty.
+ */
+function skillBodyFor(path: string): string | undefined {
+  try {
+    const mtimeMs = statSync(path).mtimeMs
+    const cached = skillBodyCache.get(path)
+    if (cached !== undefined && cached.mtimeMs === mtimeMs) return cached.body
+    const body = stripFrontmatter(readFileSync(path, 'utf8')) || undefined
+    skillBodyCache.set(path, { mtimeMs, body })
+    return body
+  } catch {
+    // An absent or unreadable skill file falls back to the stored instructions.
+    return undefined
+  }
+}
+
 interface Settings {
   readonly dir: string
   readonly file: string
@@ -637,6 +760,16 @@ interface Settings {
   readonly readAllow: ReadonlySet<string> | undefined
   readonly denyExtras: ReadonlySet<string>
   readonly interruptWaitMs: number
+  readonly rolesDir: string
+  readonly ponytailLevel: 'lite' | 'full' | 'ultra'
+  readonly autoRounds: number
+  /** Whether a `write` specialist may use delegation tools. */
+  readonly workerDelegation: boolean
+  /**
+   * The browser half's `sidebar.launcher` flag, validated here because one row
+   * configures both halves.
+   */
+  readonly showLauncher: boolean
 }
 
 const NO_EXTRA_DENIES: ReadonlySet<string> = new Set()
@@ -673,6 +806,12 @@ function readSettings(config: Config): Settings {
   const dir = resolve(config.dir !== undefined && config.dir.trim() !== ''
     ? config.dir
     : join(process.env.DSH_HOME ?? join(homedir(), '.dsh'), 'teams'))
+  const ponytailLevel = config.ponytailLevel ?? DEFAULT_PONYTAIL_LEVEL
+  if (ponytailLevel !== 'lite' && ponytailLevel !== 'full' && ponytailLevel !== 'ultra') {
+    throw new Error('aseldev-teams: ponytailLevel must be "lite", "full", or "ultra"')
+  }
+  const showLauncher = config.showLauncher ?? true
+  if (typeof showLauncher !== 'boolean') throw new Error('aseldev-teams: showLauncher must be a boolean')
   return {
     dir,
     // The documented store location: <dsh home>/teams/state.json.
@@ -685,6 +824,11 @@ function readSettings(config: Config): Settings {
     readAllow: toolSet(config.readTools, 'readTools'),
     denyExtras: toolSet(config.delegationTools, 'delegationTools') ?? NO_EXTRA_DENIES,
     interruptWaitMs: integerInRange(config.interruptWaitMs, 'interruptWaitMs', DEFAULT_INTERRUPT_WAIT_MS, 0, 600_000),
+    rolesDir: resolveRolesDir(config),
+    ponytailLevel,
+    autoRounds: integerInRange(config.autoRounds, 'autoRounds', DEFAULT_AUTO_ROUNDS, 1, 1000),
+    workerDelegation: config.workerDelegation === true,
+    showLauncher,
   }
 }
 
@@ -705,6 +849,14 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
 
   /** Admission is closed during teardown; the engine reference is retained so `settle` still runs. */
   let closing = false
+
+  /** Live deployment values: seeded from config, then overwritten by the settings namespace. */
+  const configuration = {
+    rolesDir: settings.rolesDir,
+    ponytailLevel: settings.ponytailLevel as 'lite' | 'full' | 'ultra',
+    autoRounds: settings.autoRounds,
+    workerDelegation: settings.workerDelegation,
+  }
 
   // Retain injected capabilities through teardown, even after registry unpublication.
   const subagents = ctx.subagents
@@ -730,14 +882,6 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
 
   /** Read workers' computed allow-lists, so the guard enforces the same set as the filter. */
   const readAllowOf = new Map<string, ReadonlySet<string>>()
-
-  ctx.inject(['systemPrompt'], (pctx) => {
-    pctx.systemPrompt.context({
-      name: 'teams:coordination',
-      order: 118,
-      text: COORDINATION_TEXT,
-    })
-  })
 
   /**
    * Per-worker gates for a delivery in flight.
@@ -816,7 +960,12 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
       const allow = readAllowFor(parent)
       return { toolFilter: { allow: [...allow] }, allow }
     }
-    const deny = visibleNames(parent).filter(name => isDelegationName(name) || settings.denyExtras.has(name))
+    const deny = visibleNames(parent).filter((name) => {
+      if (settings.denyExtras.has(name)) return true
+      // Team control is never a worker's: it belongs to the coordinating conversation.
+      if (name === TEAM_TOOL) return true
+      return !settings.workerDelegation && isDelegationName(name)
+    })
     return deny.length === 0 ? {} : { toolFilter: { deny } }
   }
 
@@ -845,16 +994,20 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
       const runtime = subagents
       const parent = parentOf(sessionId)
       if (parent === undefined) throw new Error('the coordinating conversation is not live')
-      const persona = personaFor(specialist)
-      const { toolFilter, allow } = filterFor(parent, specialist)
+      // The role skill file is the live source for a role's instructions; the
+      // stored copy is the fallback, so a Settings edit reaches the next start.
+      const skill = skillBodyFor(join(configuration.rolesDir, specialist.id, 'SKILL.md'))
+      const effective: SpecialistLike = skill === undefined ? specialist : { ...specialist, instructions: skill }
+      const persona = personaFor(effective)
+      const { toolFilter, allow } = filterFor(parent, effective)
       const { childId, messageId } = await runtime.startContinuable({
         provider: settings.provider,
-        label: labelFor(task, specialist),
+        label: labelFor(task, effective),
         signal,
         request: {
           // The specialist's own instructions always ride the assignment: they
           // must never enter the persona, which is a strict template.
-          prompt: [{ type: 'text', text: assignmentText(task, specialist.mode, roleText(specialist, persona === undefined)) }],
+          prompt: [{ type: 'text', text: assignmentText(task, effective.mode, roleText(effective, persona === undefined)) }],
           parent,
           ...settings.agentOptions !== undefined ? { agentOptions: settings.agentOptions } : {},
           ...persona !== undefined ? { persona } : {},
@@ -919,6 +1072,143 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
   })
   ctx.logger.info(`aseldev-teams: ${settings.file} (maxActive ${settings.maxActive}, maxLimit ${settings.maxLimit}, provider ${settings.provider})`)
 
+  /** Seed the default role specialists once, replacing the pre-skill roster. */
+  const seedRoster = (): void => {
+    let specialists: readonly SpecialistLike[] = []
+    try {
+      specialists = engine.state('role-seed').specialists
+    } catch {
+      return
+    }
+    const byId = new Map<string, SpecialistLike>(specialists.map(entry => [entry.id, entry]))
+    const next: SpecialistLike[] = []
+    for (const role of DEFAULT_ROLES) {
+      const existing = byId.get(role.id)
+      if (existing !== undefined) {
+        next.push({ ...existing })
+        continue
+      }
+      next.push({
+        id: role.id,
+        name: role.name,
+        mode: role.mode,
+        instructions: skillBodyFor(join(configuration.rolesDir, role.id, 'SKILL.md')) ?? FALLBACK_INSTRUCTIONS[role.id] ?? role.name,
+      })
+    }
+    for (const entry of specialists) {
+      if (DEFAULT_ROLES.some(role => role.id === entry.id) || OBSOLETE_ROLE_IDS.has(entry.id)) continue
+      next.push({ ...entry })
+    }
+    try {
+      engine.setRoster(next)
+    } catch (error: unknown) {
+      ctx.logger.warn(`aseldev-teams: could not seed the default roles: ${message(error)}`)
+    }
+  }
+
+  /**
+   * Child sessions recorded from `agent/created`. This is the deterministic
+   * discriminator: a delegated session (team worker or ad-hoc `subagent` child)
+   * is registered before its first prompt assembly, so the global coordination
+   * text can never hand it the PM contract even though the child is not yet
+   * readable through the agent registry and keeps the full toolset.
+   */
+  const childSessions = new Set<string>()
+
+  /**
+   * Whether this conversation is the coordinator (the Project Manager). Three
+   * discriminators, in order:
+   *
+   * 1. A session created by `agent/created` with a `parentSession` is delegated —
+   *    never the coordinator.
+   * 2. A live agent whose session header carries a `parentSession` is delegated
+   *    too (covers a resumed child the registry knows about).
+   * 3. A top-level conversation that cannot see `team_manage` is a plain
+   *    session without team control, so it keeps the worker statement.
+   *
+   * Without this, a spawned agent inherits the PM contract ("do not implement:
+   * plan and delegate"), delegates again, and the chain dead-ends.
+   */
+  const isCoordinator = (agentId: string): boolean => {
+    if (childSessions.has(agentId)) return false
+    const agent = agents.get(agentId)
+    const parent = agent?.session?.header?.parentSession
+    if (typeof parent === 'string' && parent !== '') return false
+    const runtime = tools()
+    if (agent === undefined || runtime === undefined || runtime.schemas === undefined) return true
+    try {
+      return runtime.schemas(agent).some(schema => schema?.name === TEAM_TOOL)
+    } catch {
+      return true
+    }
+  }
+
+  /**
+   * The standing instruction for every assembly: the PM's plan-and-delegate
+   * protocol for a coordinator, the assignment contract for a worker. It is a
+   * function so the PM skill file and the live settings are read at assembly.
+   */
+  ctx.inject(['systemPrompt'], (pctx) => {
+    pctx.systemPrompt.context({
+      name: 'teams:coordination',
+      order: 118,
+      text: (context) => {
+        const agentId = context?.agent?.id
+        if (typeof agentId === 'string' && !isCoordinator(agentId)) {
+          return configuration.workerDelegation ? WORKER_COORDINATION_DELEGATING : WORKER_COORDINATION
+        }
+        const body = skillBodyFor(join(configuration.rolesDir, 'pm', 'SKILL.md')) ?? PM_FALLBACK
+        return `${body}\n\nAuto-continue budget: at most ${configuration.autoRounds} round(s) since the user's last message, then stop and report progress and what remains. Writing assignments carry "Ponytail level: ${configuration.ponytailLevel}".`
+      },
+    })
+  })
+
+  /** The settings scope, once the settings capability composes. */
+  let settingsScope: SettingsScopeLike | undefined
+
+  /** Merge saved settings into the live deployment values. */
+  const applySettings = (next: Record<string, unknown>): void => {
+    if (typeof next.rolesDir === 'string' && next.rolesDir.trim() !== '') configuration.rolesDir = resolve(next.rolesDir)
+    if (next.ponytailLevel === 'lite' || next.ponytailLevel === 'full' || next.ponytailLevel === 'ultra') configuration.ponytailLevel = next.ponytailLevel
+    if (typeof next.autoRounds === 'number' && Number.isSafeInteger(next.autoRounds) && next.autoRounds >= 1 && next.autoRounds <= 1000) configuration.autoRounds = next.autoRounds
+  }
+
+  const loadSettingsSchema = (): Promise<unknown> => fromProfile('@deepseek-ai/schemastery').then((module) => {
+    const z = (module.default ?? module) as {
+      object(fields: Record<string, unknown>): unknown
+      string(): { default(value: string): unknown }
+      number(): { default(value: number): unknown }
+    }
+    return z.object({
+      rolesDir: z.string().default(''),
+      ponytailLevel: z.string().default('full'),
+      autoRounds: z.number().default(DEFAULT_AUTO_ROUNDS),
+    })
+  })
+
+  void loadSettingsSchema().then((settingsSchema) => {
+    try {
+      ctx.inject(['settings'], (sctx) => {
+        const registered = sctx.settings.register('aseldev-teams', settingsSchema, {
+          base: {
+            rolesDir: settings.rolesDir,
+            ponytailLevel: settings.ponytailLevel,
+            autoRounds: settings.autoRounds,
+          },
+        })
+        settingsScope = registered
+        applySettings(registered.get())
+        sctx.effect(() => registered.watch((next) => { applySettings(next) }), 'aseldev-teams: settings watcher')
+      })
+    } catch (error: unknown) {
+      ctx.logger.warn(`aseldev-teams: settings are unavailable (${message(error)})`)
+    }
+  }).catch((error: unknown) => {
+    ctx.logger.warn(`aseldev-teams: settings schema could not load (${message(error)})`)
+  })
+
+  seedRoster()
+
   // Admission: the guard identifies a worker by the calling agent id and refuses
   // what the engine may not offer it. A read worker is denied everything outside
   // its computed allow-list, so a tool composed later cannot widen it. This is
@@ -931,7 +1221,7 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
       if (worker === null) return undefined
       if (closing || !CONVERSING_STATUSES.has(worker.task.status)) return 'Refused: this assignment is not accepting tool calls.'
       const name = execution.name
-      if (isDelegationName(name)) {
+      if (name === TEAM_TOOL || (isDelegationName(name) && !settings.workerDelegation)) {
         return `Refused: ${name} would let this teammate delegate, message, or inspect agents. Answer inside your assignment and report instead.`
       }
       if (worker.task.specialist?.mode !== 'read') {
@@ -969,8 +1259,12 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
   // team and is a no-op for a paused or still-absent team, so nothing is
   // scheduled that the operator has not unpaused.
   ctx.on('agent/created', (payload) => {
-    const sessionId = payload?.agent?.id
-    if (typeof sessionId !== 'string' || closing) return
+    const agent = payload?.agent
+    const sessionId = agent?.id
+    if (typeof sessionId !== 'string') return
+    const parent = agent?.session?.header?.parentSession
+    if (typeof parent === 'string' && parent !== '') childSessions.add(sessionId)
+    if (closing) return
     try { engine.live(sessionId) } catch { /* a store that is closing owes this agent nothing */ }
   })
 
@@ -982,7 +1276,11 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
   //     BEFORE delivering, so its own wakes satisfy this);
   //   - the message id is one this plugin itself got accepted, so a coordinator's
   //     `send_message` tool cannot wake a teammate behind the scheduler's back.
-  // Injected context and tool-owed continuations are not wakes and pass through.
+  // Only `user` (a composer message) and `coordinator` (the scheduler's relay)
+  // open a scheduled turn. Every other source — a tool-owed continuation, a
+  // plugin/skill injection, the skill catalog, workspace instructions, goals,
+  // session references, reports — rides an already-open step as context and
+  // must pass; treating it as a wake rejected the worker's own first step.
   // An UNMAPPED id passes: `startContinuable` admits the first message before it
   // returns the id, and that child is already persona- and filter-restricted.
   ctx.on('agent/pre-step', async (payload, next) => {
@@ -995,7 +1293,7 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
     if (closing) return { kind: 'reject' }
     const claimed = decision.messages ?? []
     if (claimed.length === 0) return decision
-    const wakes = claimed.filter(item => !NON_WAKING_SOURCES.has(typeof item.source?.kind === 'string' ? item.source.kind : ''))
+    const wakes = claimed.filter(item => WAKING_SOURCES.has(typeof item.source?.kind === 'string' ? item.source.kind : ''))
     if (wakes.length === 0) return decision
     // A delivery in flight has not returned its message id yet; its claim must
     // wait rather than be judged unscheduled. The gate closes once the id is
@@ -1094,6 +1392,75 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
     tctx.tools.register(definition)
   })
 
+  /** The roles/settings view the Settings → Teams page renders. */
+  const rolesView = (): Record<string, unknown> => {
+    let specialists: readonly SpecialistLike[] = []
+    try {
+      specialists = engine.state('role-view').specialists
+    } catch { /* an empty roster is still a view */ }
+    const content = (id: string): { hasSkill: boolean; content: string } => {
+      const body = skillBodyFor(join(configuration.rolesDir, id, 'SKILL.md'))
+      return body === undefined ? { hasSkill: false, content: '' } : { hasSkill: true, content: body }
+    }
+    return {
+      roles: specialists
+        .filter(entry => !OBSOLETE_ROLE_IDS.has(entry.id))
+        .map(entry => ({ id: entry.id, name: entry.name, mode: entry.mode, ...content(entry.id) })),
+      pm: content('pm'),
+      settings: {
+        ponytailLevel: configuration.ponytailLevel,
+        autoRounds: configuration.autoRounds,
+        maxActive: settings.maxActive,
+        maxLimit: settings.maxLimit,
+      },
+    }
+  }
+
+  /** Write one role skill and keep the stored role text in step with it. */
+  const writeRoleSkill = async (id: unknown, content: unknown): Promise<void> => {
+    if (typeof id !== 'string' || !ROLE_ID.test(id)) throw new HttpError(400, 'a role id must contain lowercase letters, digits, or hyphens')
+    if (typeof content !== 'string' || content.trim() === '') throw new HttpError(400, 'skill content must be non-empty text')
+    if (content.length > ROLE_SKILL_MAX_CHARS) throw new HttpError(413, `the skill is larger than ${ROLE_SKILL_MAX_CHARS} characters`)
+    const file = join(configuration.rolesDir, id, 'SKILL.md')
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, content.endsWith('\n') ? content : `${content}\n`, 'utf8')
+    // The stored role text is the panel/board mirror; the worker gets the file.
+    let specialists: readonly SpecialistLike[] = []
+    try {
+      specialists = engine.state('role-writer').specialists
+    } catch { /* seeding is best-effort */ }
+    const existing = specialists.find(entry => entry.id === id)
+    if (existing !== undefined) {
+      try {
+        await engine.action('role-writer', 'save_specialist', {
+          specialist: { ...existing, instructions: stripFrontmatter(content) },
+        })
+      } catch (error: unknown) {
+        ctx.logger.warn(`aseldev-teams: could not sync role ${id} (${message(error)})`)
+      }
+    }
+  }
+
+  /** Persist one settings change through the settings namespace. */
+  const writeSettings = (body: Record<string, unknown>): void => {
+    if (settingsScope === undefined) throw new HttpError(409, 'settings are not available in this profile, so they cannot be changed here')
+    const next: Record<string, unknown> = {}
+    if (body.ponytailLevel !== undefined) {
+      if (body.ponytailLevel !== 'lite' && body.ponytailLevel !== 'full' && body.ponytailLevel !== 'ultra') {
+        throw new HttpError(400, 'ponytailLevel must be "lite", "full", or "ultra"')
+      }
+      next.ponytailLevel = body.ponytailLevel
+    }
+    if (body.autoRounds !== undefined) {
+      if (typeof body.autoRounds !== 'number' || !Number.isSafeInteger(body.autoRounds) || body.autoRounds < 1 || body.autoRounds > 1000) {
+        throw new HttpError(400, 'autoRounds must be an integer from 1 to 1000')
+      }
+      next.autoRounds = body.autoRounds
+    }
+    settingsScope.update(next)
+    applySettings(next)
+  }
+
   async function serve(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://local')
     const parts = url.pathname.split('/').filter(Boolean)
@@ -1118,6 +1485,39 @@ export async function apply(ctx: ContextLike, config: Config = {}): Promise<void
       } catch (error: unknown) {
         throw new HttpError(400, message(error))
       }
+      return
+    }
+
+    if (parts[2] === 'launcher') {
+      if (req.method !== 'GET') throw new HttpError(405, 'launcher is a GET route')
+      send(res, 200, { showLauncher: settings.showLauncher })
+      return
+    }
+
+    if (parts[2] === 'roles') {
+      if (req.method !== 'GET') throw new HttpError(405, 'roles is a GET route')
+      send(res, 200, rolesView())
+      return
+    }
+
+    if (parts[2] === 'role-skill') {
+      if (req.method !== 'POST') throw new HttpError(405, 'role-skill is a POST route')
+      const body = await readJson(req)
+      try {
+        await writeRoleSkill(body.id, body.content)
+      } catch (error: unknown) {
+        if (error instanceof HttpError) throw error
+        throw new HttpError(400, message(error))
+      }
+      send(res, 200, rolesView())
+      return
+    }
+
+    if (parts[2] === 'settings') {
+      if (req.method !== 'POST') throw new HttpError(405, 'settings is a POST route')
+      const body = await readJson(req)
+      writeSettings(body)
+      send(res, 200, rolesView())
       return
     }
 

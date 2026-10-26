@@ -53,6 +53,7 @@ Groups hold `packages/<group>/<pkg>/`; names stay `@deepseek-ai/dsh-<pkg>`. **Gr
 | [`interaction/`](interaction/README.md) | Human-collaboration plane: approval/interaction seams, permission preset, commands, ask-user tool | Product — stable API |
 | [`boot/`](boot/README.md) | Shared app-bin boot glue | Product — stable API |
 | [`host/`](host/README.md) | Web-GUI host half: API gateway + HTTP route server | Product — stable API |
+| [`market/`](market/README.md) | Plugin-market capability family: search/install seam, npm registry provider, model-facing tools, and the `market` Remote | Product — stable API |
 | [`client/`](client/README.md) | Web-GUI browser half: shell, wire, object services, slots, `ui-*` plugins | Product — stable API |
 | [`examples/`](examples/README.md) | Demo bundles (agent-spine + CLI/ACP/JSON-RPC bins) leaves load | Support — example infra |
 | [`test-support/`](test-support/README.md) | Support infrastructure (testkits, invariants, replay, Loader smokes) | Support — lower compatibility expectations |

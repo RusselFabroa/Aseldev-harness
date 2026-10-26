@@ -74,6 +74,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   invariants: 'invariants.md',
   llm: 'llm-streaming.md',
   lsp: 'lsp.md',
+  market: 'extensions.md',
   messageFeedback: 'feedback.md',
   permissionPresets: 'permission-presets.md',
   planMode: 'plan.md',
@@ -578,6 +579,10 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   WorkflowAgentEndInfo: 'event-local snapshot is owned by packages/workflow/workflow/src/index.ts',
   WorkflowAgentInfo: 'event-local snapshot is owned by packages/workflow/workflow/src/index.ts',
   WorkflowResultInfo: 'event-local snapshot is owned by packages/workflow/workflow/src/index.ts',
+  MarketSearchRequest: 'market seam payload is owned by packages/market/market/README.md',
+  MarketSearchResult: 'market seam payload is owned by packages/market/market/README.md',
+  MarketInstallRequest: 'market seam payload is owned by packages/market/market/README.md',
+  MarketInstallResult: 'market seam payload is owned by packages/market/market/README.md',
 }
 
 /** Repository data policy consumed by the Cordis catalog projector. */

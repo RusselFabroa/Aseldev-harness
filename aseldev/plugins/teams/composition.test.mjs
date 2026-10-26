@@ -117,8 +117,9 @@ test('a coordinator assigns a worker, settles it, follows up, and records a stab
   assert.ok(coordinator.userText.includes('Set up a reader teammate and give it the assignment.'))
 
   // The coordination instruction reached both sides' logged context.
-  assert.match(coordinator.coordination ?? '', /Team workers only execute own assignment\./)
-  assert.match(worker.coordination ?? '', /Team workers only execute own assignment\./)
+  assert.match(coordinator.coordination ?? '', /Auto-continue budget/)
+  assert.match(coordinator.coordination ?? '', /Project Manager/)
+  assert.match(worker.coordination ?? '', /team worker|team worker|executes its assignment|execute your assignment/i)
 
   // The two model-level team_manage results: the saved roster, then the accepted
   // assignment. Completion itself is the durable status asserted above.

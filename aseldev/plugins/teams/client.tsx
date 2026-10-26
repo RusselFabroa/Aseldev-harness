@@ -4,7 +4,9 @@
  * One `sidebar.launcher` entry under the Brain/Artifacts buttons: a labelled
  * button when the sidebar is wide, an icon on the collapsed rail, and a
  * fixed-position status panel that escapes the sidebar column's overflow
- * clipping (the same technique `Tooltip` and the artifacts window use).
+ * clipping (the same technique `Tooltip` and the artifacts window use). The
+ * entry is optional: `showLauncher: false` in the plugin row leaves it to the
+ * isometric office, which owns the sidebar in the shipped profile.
  *
  * The panel is scoped to one coordinator session: it reads that session's
  * team through the host plugin's JSON API (`GET /aseldev-teams/api/state`),
@@ -54,9 +56,13 @@ const TRUST_HEADER = 'x-aseldev-teams'
 const POLL_MS = 1500
 
 /** Panel geometry. */
-const PANEL_WIDTH = 468
+const PANEL_WIDTH = 300
 const PANEL_GAP = 12
 const PANEL_VIEWPORT_PAD = 8
+
+/** Orbit ring geometry: three nodes around the PM core. */
+const ORBIT_ANGLE = [-90, 30, 150]
+const ORBIT_RADIUS = 84
 
 /** Locale namespace owned by this plugin. */
 export const TEAMS_NS = 'aseldev.teams'
@@ -138,6 +144,8 @@ export const zh = {
   'footer.noSession': '未选择会话',
   'footer.paused': '已暂停',
   'footer.polling': '自动刷新中',
+  'footer.manual': '手动刷新',
+  'footer.hidden': '窗口未激活',
   'launcher.label': '团队',
   'launcher.aria': '团队任务面板',
   'launcher.tooltip': '团队任务',
@@ -152,11 +160,38 @@ export const zh = {
   'status.canceled': '已取消',
   'status.blocked': '受阻',
   'status.unknown': '未知',
+  'status.idle': '空闲',
+  'orbit.live': '实时',
+  'orbit.worker': '打开该角色的会话',
+  'orbit.captionIdle': '团队空闲',
+  'orbit.captionDone': '全部完成',
+  'orbit.captionBusy': '{settled} 项已结算 · {inflight} 项进行中',
   'error.malformed': '团队状态格式不正确：{path} 必须是{expected}',
   'error.transport': '无法连接团队接口：宿主插件可能未加载',
   'error.http': '团队接口失败（HTTP {status}）',
   'error.nonJson': '团队接口返回了非 JSON 响应（HTTP {status}）',
   'error.request': '请求失败',
+  'expected.object': '一个对象',
+  'expected.string': '一个字符串',
+  'expected.nonEmptyString': '非空字符串',
+  'expected.number': '一个有限数字',
+  'expected.array': '一个数组',
+  'expected.mode': '"read" 或 "write"',
+  'expected.team': 'null 或一个对象',
+  'expected.boolean': '一个布尔值',
+  'settings.nav': '团队',
+  'settings.title': '团队',
+  'settings.pm': '项目经理（协调者）技能',
+  'settings.pmHint': 'PM 的编排协议：读取工作区、拆分任务、指派和汇总报告。',
+  'settings.roles': '角色技能',
+  'settings.skillHint': '保存后对新任务生效；正在运行的 worker 不受影响。',
+  'settings.loading': '正在读取团队配置…',
+  'settings.error': '读取团队配置失败',
+  'settings.save': '保存',
+  'settings.saved': '已保存',
+  'settings.ponytail': 'Ponytail 等级',
+  'settings.autoRounds': '自动续跑轮数',
+  'settings.reload': '重新读取',
 } as const
 
 /** English copy. */
@@ -231,6 +266,8 @@ export const en: Record<keyof typeof zh, string> = {
   'footer.noSession': 'No session selected',
   'footer.paused': 'Paused',
   'footer.polling': 'Auto-refreshing',
+  'footer.manual': 'Manual refresh',
+  'footer.hidden': 'Tab hidden',
   'launcher.label': 'Team',
   'launcher.aria': 'Team panel',
   'launcher.tooltip': 'Team assignments',
@@ -245,11 +282,38 @@ export const en: Record<keyof typeof zh, string> = {
   'status.canceled': 'Canceled',
   'status.blocked': 'Blocked',
   'status.unknown': 'Unknown',
+  'status.idle': 'Idle',
+  'orbit.live': 'live',
+  'orbit.worker': 'Open the role conversation',
+  'orbit.captionIdle': 'Team idle',
+  'orbit.captionDone': 'All done',
+  'orbit.captionBusy': '{settled} settled · {inflight} in flight',
   'error.malformed': 'Malformed team state: {path} must be {expected}',
   'error.transport': 'Cannot reach the teams endpoint: the host plugin may not be loaded',
   'error.http': 'The teams endpoint failed (HTTP {status})',
   'error.nonJson': 'The teams endpoint answered with non-JSON content (HTTP {status})',
   'error.request': 'Request failed',
+  'expected.object': 'an object',
+  'expected.string': 'a string',
+  'expected.nonEmptyString': 'a non-empty string',
+  'expected.number': 'a finite number',
+  'expected.array': 'an array',
+  'expected.mode': '"read" or "write"',
+  'expected.team': 'null or an object',
+  'expected.boolean': 'a boolean',
+  'settings.nav': 'Team',
+  'settings.title': 'Team',
+  'settings.pm': 'Project Manager (coordinator) skill',
+  'settings.pmHint': 'The PM protocol: read the shared workspace, split the request, assign, and summarize reports.',
+  'settings.roles': 'Role skills',
+  'settings.skillHint': 'Applies to new assignments; running workers keep their captured role.',
+  'settings.loading': 'Reading team configuration…',
+  'settings.error': 'Reading the team configuration failed',
+  'settings.save': 'Save',
+  'settings.saved': 'Saved',
+  'settings.ponytail': 'Ponytail level',
+  'settings.autoRounds': 'Auto-continue rounds',
+  'settings.reload': 'Reload',
 }
 
 /**
@@ -393,7 +457,7 @@ export class SnapshotError extends Error {
   /**
    * @param key - message key describing the failure.
    * @param path - field path inside the payload (`team.tasks[2].mode`).
-   * @param expected - what the field had to be.
+   * @param expected - localized description of what the field had to be.
    * @param t - translate function for the rendered text.
    */
   constructor(key: string, readonly path: string, expected: string, t: Translate) {
@@ -402,30 +466,30 @@ export class SnapshotError extends Error {
 }
 
 function recordAt(value: unknown, path: string, t: Translate): Record<string, unknown> {
-  if (!isRecord(value)) throw new SnapshotError('error.malformed', path, 'an object', t)
+  if (!isRecord(value)) throw new SnapshotError('error.malformed', path, t('expected.object'), t)
   return value
 }
 
 function stringAt(value: unknown, path: string, t: Translate): string {
-  if (typeof value !== 'string') throw new SnapshotError('error.malformed', path, 'a string', t)
+  if (typeof value !== 'string') throw new SnapshotError('error.malformed', path, t('expected.string'), t)
   return value
 }
 
 function idAt(value: unknown, path: string, t: Translate): string {
   const text = stringAt(value, path, t)
-  if (text === '') throw new SnapshotError('error.malformed', path, 'a non-empty string', t)
+  if (text === '') throw new SnapshotError('error.malformed', path, t('expected.nonEmptyString'), t)
   return text
 }
 
 function numberAt(value: unknown, path: string, t: Translate): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new SnapshotError('error.malformed', path, 'a finite number', t)
+    throw new SnapshotError('error.malformed', path, t('expected.number'), t)
   }
   return value
 }
 
 function arrayAt(value: unknown, path: string, t: Translate): unknown[] {
-  if (!Array.isArray(value)) throw new SnapshotError('error.malformed', path, 'an array', t)
+  if (!Array.isArray(value)) throw new SnapshotError('error.malformed', path, t('expected.array'), t)
   return value
 }
 
@@ -439,7 +503,7 @@ function optionalStringAt(value: unknown, path: string, t: Translate): string | 
 
 function modeAt(value: unknown, path: string, t: Translate): SpecialistMode {
   if (value === 'read' || value === 'write') return value
-  throw new SnapshotError('error.malformed', path, '"read" or "write"', t)
+  throw new SnapshotError('error.malformed', path, t('expected.mode'), t)
 }
 
 function parseSpecialist(value: unknown, path: string, t: Translate): Specialist {
@@ -520,7 +584,7 @@ export function parseSnapshot(value: unknown, t: Translate = zhTranslate): Teams
         label: stringAt(record.label, `${path}.label`, t),
       }
     })
-  if (!('team' in root)) throw new SnapshotError('error.malformed', 'team', 'null or an object', t)
+  if (!('team' in root)) throw new SnapshotError('error.malformed', 'team', t('expected.team'), t)
   let team: TeamState | null = null
   if (root.team !== null) {
     const record = recordAt(root.team, 'team', t)
@@ -535,7 +599,7 @@ export function parseSnapshot(value: unknown, t: Translate = zhTranslate): Teams
         ? false
         : typeof record.paused === 'boolean'
           ? record.paused
-          : (() => { throw new SnapshotError('error.malformed', 'team.paused', 'a boolean', t) })(),
+          : (() => { throw new SnapshotError('error.malformed', 'team.paused', t('expected.boolean'), t) })(),
       tasks,
     }
   }
@@ -576,6 +640,13 @@ export interface TeamsApi {
    * @returns the host's raw answer (shape is not relied upon).
    */
   action(sessionId: string, action: TeamsAction, signal?: AbortSignal): Promise<unknown>
+  /**
+   * Read the host's sidebar-launcher flag. A plugin row config does not reach
+   * this half, so the host is the only channel.
+   * @param signal - caller cancellation.
+   * @returns whether this half should register its `sidebar.launcher` entry.
+   */
+  launcher(signal?: AbortSignal): Promise<boolean>
 }
 
 /** Error text for any thrown value ("AbortError" is not a user error). */
@@ -629,7 +700,7 @@ async function request(path: string, init: RequestInit, t: Translate, signal?: A
 /**
  * Build the panel's host API client.
  * @param t - translate function for transport diagnostics.
- * @returns the `state` and `action` calls.
+ * @returns the `state`, `action`, and `launcher` calls.
  */
 export function createTeamsApi(t: Translate = zhTranslate): TeamsApi {
   return {
@@ -643,6 +714,89 @@ export function createTeamsApi(t: Translate = zhTranslate): TeamsApi {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ sessionId, ...action }),
       }, t, signal)
+    },
+    async launcher(signal) {
+      const body = await request('/launcher', { method: 'GET' }, t, signal)
+      return isRecord(body) && body['showLauncher'] === false ? false : true
+    },
+  }
+}
+
+// ------------------------------------------------------- settings transport
+
+/** One role row the Settings → Teams page renders. */
+export interface RoleSkillView {
+  id: string
+  name: string
+  mode: string
+  hasSkill: boolean
+  content: string
+}
+
+/** The Settings → Teams payload. */
+export interface TeamsRolesView {
+  roles: RoleSkillView[]
+  pm: { hasSkill: boolean; content: string }
+  settings: { ponytailLevel: string; autoRounds: number; maxActive: number; maxLimit: number }
+}
+
+/** The three settings-page calls. */
+export interface TeamsSettingsApi {
+  /** Read the roles, the PM skill, and the settings. */
+  roles(signal?: AbortSignal): Promise<TeamsRolesView>
+  /** Save one role skill document. */
+  saveSkill(id: string, content: string): Promise<TeamsRolesView>
+  /** Save the ponytail level and the auto-continue budget. */
+  saveSettings(values: { ponytailLevel?: string; autoRounds?: number }): Promise<TeamsRolesView>
+}
+
+/**
+ * Build the settings page's host API client.
+ * @param t - translate function for transport diagnostics.
+ * @returns the `roles`, `saveSkill`, and `saveSettings` calls.
+ */
+export function createTeamsSettingsApi(t: Translate = zhTranslate): TeamsSettingsApi {
+  return {
+    async roles(signal) {
+      return toRolesView(await request('/roles', { method: 'GET' }, t, signal), t)
+    },
+    async saveSkill(id, content) {
+      return toRolesView(await request('/role-skill', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, content }),
+      }, t), t)
+    },
+    async saveSettings(values) {
+      return toRolesView(await request('/settings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(values),
+      }, t), t)
+    },
+  }
+}
+
+/** Narrow a raw roles answer; the page renders only what it asked for. */
+function toRolesView(body: unknown, t: Translate): TeamsRolesView {
+  if (!isRecord(body)) throw new TeamsApiError(t('settings.error'))
+  const roles = Array.isArray(body.roles) ? body.roles : []
+  const pm = isRecord(body.pm) ? body.pm : {}
+  const settings = isRecord(body.settings) ? body.settings : {}
+  return {
+    roles: roles.filter(isRecord).map(entry => ({
+      id: typeof entry.id === 'string' ? entry.id : '',
+      name: typeof entry.name === 'string' ? entry.name : '',
+      mode: typeof entry.mode === 'string' ? entry.mode : 'read',
+      hasSkill: entry.hasSkill === true,
+      content: typeof entry.content === 'string' ? entry.content : '',
+    })),
+    pm: { hasSkill: pm.hasSkill === true, content: typeof pm.content === 'string' ? pm.content : '' },
+    settings: {
+      ponytailLevel: typeof settings.ponytailLevel === 'string' ? settings.ponytailLevel : 'full',
+      autoRounds: typeof settings.autoRounds === 'number' ? settings.autoRounds : 8,
+      maxActive: typeof settings.maxActive === 'number' ? settings.maxActive : 0,
+      maxLimit: typeof settings.maxLimit === 'number' ? settings.maxLimit : 0,
     },
   }
 }
@@ -869,15 +1023,27 @@ export function operationStillApplies(
 // ------------------------------------------------------------------ styling
 
 const S: Record<string, React.CSSProperties> = {
-  section: { flex: 'none', display: 'flex', flexDirection: 'column', position: 'relative' },
-  sectionRail: { alignItems: 'center' },
+  // The launcher shares the sidebar's regionArea with the Brain entry, which
+  // reserves the column's inline inset on its own wrapper. Ours must do the
+  // same or the wide button overhangs Brain's right edge.
+  section: {
+    flex: 'none', display: 'flex', flexDirection: 'column', position: 'relative',
+    paddingRight: 'var(--dsh-sidebar-inline-padding)', marginBottom: 8,
+  },
+  sectionRail: { alignItems: 'center', paddingRight: 0 },
+  settings: { display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 760 },
+  modeTag: { color: 'var(--dsw-alias-label-tertiary, #888)', fontSize: 11, marginLeft: 6 },
+  buttonDots: { display: 'inline-flex', alignItems: 'center', gap: 3, flex: 'none' },
+  buttonDot: { width: 5, height: 5, borderRadius: '50%', background: 'var(--dsw-alias-border-l3, #ccc)' },
+  buttonDotOn: { background: 'var(--dsw-alias-state-success-primary, #2a2)' },
+  buttonDotWarn: { background: 'var(--dsw-alias-state-error-primary, #d33)' },
   button: {
     display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', font: 'inherit',
     border: '1px solid var(--dsw-alias-border-l2, #e5e5e5)',
     background: 'var(--dsw-alias-bg-module-platform, transparent)',
     color: 'var(--dsw-alias-label-primary, currentColor)',
   },
-  buttonWide: { width: '100%', height: 36, padding: '0 10px 0 12px', borderRadius: 10, fontSize: 14, fontWeight: 500 },
+  buttonWide: { width: '100%', height: 36, padding: '0 12px', borderRadius: 10, fontSize: 14, fontWeight: 500 },
   buttonRail: { justifyContent: 'center', width: 36, height: 36, padding: 0, borderRadius: 10 },
   buttonIcon: { flex: 'none', color: 'var(--dsw-alias-state-business-primary, currentColor)' },
   buttonLabel: { flex: 1, minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', textAlign: 'left' },
@@ -951,6 +1117,62 @@ const S: Record<string, React.CSSProperties> = {
   inline: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   deps: { display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 108, overflowY: 'auto' },
   depRow: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--dsw-alias-label-secondary, #555)' },
+  orbit: {
+    position: 'fixed', zIndex: 150, display: 'flex', flexDirection: 'column', gap: 8,
+    width: 300, maxWidth: 'calc(100vw - 16px)', overflow: 'hidden', borderRadius: 14, fontSize: 13,
+    padding: 12, boxSizing: 'border-box',
+    border: '1px solid var(--dsw-alias-border-l2, #e5e5e5)',
+    background: 'var(--dsw-alias-bg-layer-1, #fff)',
+    color: 'var(--dsw-alias-label-primary, inherit)',
+    boxShadow: '0 12px 32px var(--dsw-alias-bg-mask-drop, rgba(0,0,0,0.18))',
+  },
+  orbitHead: { display: 'flex', alignItems: 'center', gap: 8 },
+  orbitTitle: { fontWeight: 600 },
+  orbitLive: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #888)' },
+  orbitLiveDot: { width: 5, height: 5, borderRadius: '50%', background: 'var(--dsw-alias-state-success-primary, #2a2)', animation: 'dshteam-breathe 1.6s ease-in-out infinite' },
+  orbitSummary: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary, #888)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  orbitError: {
+    display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 10, fontSize: 12,
+    border: '1px solid var(--dsw-alias-state-error-primary, #d33)',
+    background: 'var(--dsw-alias-bg-layer-2, transparent)',
+    color: 'var(--dsw-alias-state-error-primary, #d33)',
+  },
+  orbitWrap: {
+    position: 'relative', height: 236, borderRadius: 12, overflow: 'hidden',
+    background: 'radial-gradient(circle at 50% 50%, var(--dsw-alias-bg-layer-2, rgba(0,0,0,0.04)), transparent 70%)',
+  },
+  orbitWrapDone: { boxShadow: 'inset 0 0 48px var(--dsw-alias-bg-layer-2, rgba(0,0,0,0.08))' },
+  orbitRing: {
+    position: 'absolute', left: '50%', top: '50%', width: 168, height: 168, margin: '-84px 0 0 -84px',
+    borderRadius: '50%', border: '1px dashed var(--dsw-alias-border-l2, #ccc)',
+  },
+  orbitCore: {
+    position: 'absolute', left: '50%', top: '50%', width: 84, height: 84, margin: '-42px 0 0 -42px',
+    borderRadius: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid var(--dsw-alias-border-l2, #ccc)',
+    background: 'var(--dsw-alias-bg-layer-1, #fff)',
+    boxShadow: '0 0 0 6px var(--dsw-alias-bg-layer-2, transparent)',
+  },
+  orbitPm: { fontSize: 8.5, letterSpacing: '0.16em', color: 'var(--dsw-alias-label-tertiary, #888)' },
+  orbitCoreBig: { fontSize: 22, fontWeight: 650, lineHeight: 1, fontVariantNumeric: 'tabular-nums' },
+  orbitCoreSmall: { fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--dsw-alias-label-tertiary, #888)', marginTop: 2 },
+  orbitNode: {
+    position: 'absolute', left: '50%', top: '50%', width: 54, height: 54, borderRadius: '50%',
+    border: '1px solid var(--dsw-alias-border-l2, #ccc)',
+    background: 'var(--dsw-alias-bg-layer-1, #fff)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+  },
+  orbitInitial: { fontSize: 15, fontWeight: 650 },
+  orbitLabel: {
+    position: 'absolute', top: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)',
+    display: 'flex', alignItems: 'center', gap: 4, fontSize: 9.5, letterSpacing: '0.06em', textTransform: 'uppercase',
+    color: 'var(--dsw-alias-label-tertiary, #888)', whiteSpace: 'nowrap', pointerEvents: 'none',
+  },
+  orbitLabelDot: { width: 4, height: 4, borderRadius: '50%', background: 'var(--dsw-alias-border-l3, #ccc)' },
+  orbitLabelDotOn: { background: 'var(--dsw-alias-state-success-primary, #2a2)' },
+  orbitLabelDotWarn: { background: 'var(--dsw-alias-state-error-primary, #d33)' },
+  orbitLabelDotDone: { background: 'var(--dsw-alias-state-business-primary, #38c)' },
+  orbitFoot: { display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4, color: 'var(--dsw-alias-label-tertiary, #888)', fontSize: 11 },
 }
 
 // ------------------------------------------------------------ small helpers
@@ -1029,17 +1251,6 @@ interface Drafts {
 }
 
 const EMPTY_SPECIALIST: Specialist = { id: '', name: '', instructions: '', mode: 'read' }
-
-function emptyDrafts(): Drafts {
-  return {
-    assign: { specialistId: '', title: '', prompt: '', files: '', dependsOn: [] },
-    configure: null,
-    message: {},
-    messageOpen: null,
-    specialist: { ...EMPTY_SPECIALIST },
-    specialistEditing: false,
-  }
-}
 
 /** One task row. */
 function TaskRow(props: {
@@ -1140,6 +1351,8 @@ export function TeamsPanel(props: {
   error: PanelError | null
   busy: boolean
   loadedAt: Date | null
+  /** Whether the poll timer is actually running (the panel is open and the tab is visible). */
+  pollingVisible?: boolean
   coordinatorId: string | undefined
   coordinatorLabel: string
   currentSessionId: string | undefined
@@ -1458,7 +1671,10 @@ export function TeamsPanel(props: {
             />
             <Button
               size="sm"
-              disabled={busy || drafts.configure === null || !/^\d+$/.test(drafts.configure) || Number(drafts.configure) < 1}
+              disabled={busy || coordinatorId === undefined || drafts.configure === null
+                || !/^\d+$/.test(drafts.configure) || !Number.isSafeInteger(Number(drafts.configure))
+                || Number(drafts.configure) < 1
+                || (snapshot?.maxLimit !== undefined && Number(drafts.configure) > snapshot.maxLimit)}
               icon={<IconCheckOutline14 />}
               onClick={() => {
                 const maxActive = Number(drafts.configure)
@@ -1584,61 +1800,267 @@ export function TeamsPanel(props: {
             ? t('footer.noSession')
             : team?.paused === true
               ? t('footer.paused')
-              : t('footer.polling')}
+              : props.error !== null
+                ? t('footer.manual')
+                : props.pollingVisible === false
+                  ? t('footer.hidden')
+                  : t('footer.polling')}
         </span>
       </div>
     </div>
   )
 }
 
+// -------------------------------------------------------------- orbit panel
+
+/** One role node on the status ring. */
+export interface OrbitRole {
+  id: string
+  name: string
+  mode: SpecialistMode
+  state: 'working' | 'queued' | 'done' | 'blocked' | 'idle'
+  /** Latest worker conversation for this role, when it has one. */
+  workerId?: string
+}
+
+const ACTIVE_TASK = new Set(['starting', 'working', 'canceling'])
+
 /**
- * The sidebar launcher entry plus the team panel.
+ * Fold a coordinator's tasks onto its roster: one state per role, so the ring
+ * answers "who is working?" without listing assignments.
+ * @param team - the coordinator's team, or null before the first assignment.
+ * @param specialists - the role roster.
+ * @returns one orbit node per role, in roster order.
+ */
+export function orbitRoles(team: TeamState | null, specialists: readonly Specialist[]): OrbitRole[] {
+  return specialists.map(specialist => {
+    const tasks = (team?.tasks ?? []).filter(task => task.specialistId === specialist.id)
+    let workerId: string | undefined
+    for (let index = tasks.length - 1; index >= 0; index--) {
+      const candidate = tasks[index]?.workerId
+      if (candidate !== undefined) {
+        workerId = candidate
+        break
+      }
+    }
+    const state = tasks.some(task => ACTIVE_TASK.has(task.status))
+      ? 'working'
+      : tasks.some(task => task.status === 'queued')
+        ? 'queued'
+        : tasks.some(task => task.status === 'failed' || task.status === 'blocked')
+          ? 'blocked'
+          : tasks.some(task => task.status === 'done') ? 'done' : 'idle'
+    const role: OrbitRole = { id: specialist.id, name: specialist.name, mode: specialist.mode, state }
+    if (workerId !== undefined) role.workerId = workerId
+    return role
+  })
+}
+
+/** Ring motion, kept in one stylesheet element so the inline styles stay static. */
+const ORBIT_CSS = `
+@keyframes dshteam-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+@keyframes dshteam-spin { to { transform: rotate(360deg); } }
+.dshteam-orbit-progress { position: absolute; inset: -4px; border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(52,211,153,.9), rgba(52,211,153,.15) 62%, transparent 63%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.4px));
+  animation: dshteam-spin 3.2s linear infinite; }
+.dshteam-orbit-halo { position: absolute; inset: -5px; border-radius: 50%;
+  border: 1.5px solid rgba(52,211,153,.45); animation: dshteam-breathe 1.9s ease-in-out infinite; pointer-events: none; }
+.dshteam-orbit-node[data-state="idle"] { opacity: .72; }
+.dshteam-orbit-node[data-clickable="false"] { cursor: default; }
+.dshteam-orbit-node[data-clickable="true"]:hover { box-shadow: 0 0 0 2px var(--dsw-alias-state-business-primary, rgba(94,234,212,.5)); }
+`
+
+/** Launcher chrome matching the Brain entry; inline styles cannot express hover/focus. */
+const LAUNCHER_CSS = `
+.dshteam-launch { transition: background 150ms ease; }
+.dshteam-launch:hover { background: var(--dsw-alias-state-business-tertiary, rgba(127,127,127,0.16)); }
+.dshteam-launch:focus-visible { outline: 2px solid var(--dsw-alias-state-business-primary, currentColor); outline-offset: 1px; }
+`
+
+/** The status-only team ring: one node per role around the PM core. */
+export function OrbitPanel(props: {
+  snapshot: TeamsSnapshot | null
+  snapshotFor: string | undefined
+  coordinatorId: string | undefined
+  error: PanelError | null
+  busy: boolean
+  loadedAt: Date | null
+  t?: Translate
+  onRefresh: () => void
+  onOpenWorker: (workerId: string) => void
+  onDismissError: () => void
+  onResume: () => void
+  onClose: () => void
+  style: React.CSSProperties | undefined
+  rootRef: React.RefObject<HTMLDivElement>
+}) {
+  const t = props.t ?? zhTranslate
+  const scoped = scopedTeam(props.snapshot, props.coordinatorId, props.snapshotFor)
+  const team = scoped.team
+  const switching = scoped.stale
+  const roles = orbitRoles(team, props.snapshot?.specialists ?? [])
+  const working = roles.filter(role => role.state === 'working').length
+  const settled = roles.filter(role => role.state === 'done').length
+  const allDone = roles.length > 0 && roles.every(role => role.state === 'done')
+  const summary = props.coordinatorId === undefined
+    ? t('coordinator.follow')
+    : props.snapshot === null || switching
+      ? t('tasks.loading')
+      : working > 0
+        ? t('orbit.captionBusy', { settled, inflight: working })
+        : allDone ? t('orbit.captionDone') : t('orbit.captionIdle')
+
+  // Focus the panel so Escape and tab order start inside it. Focus runs now
+  // and again on the next frame: the shell's composer restores focus later in
+  // the same commit, and the frame callback is what wins that race.
+  React.useEffect(() => {
+    props.rootRef.current?.focus()
+    if (typeof requestAnimationFrame === 'undefined') return
+    const frame = requestAnimationFrame(() => { props.rootRef.current?.focus() })
+    return () => { cancelAnimationFrame(frame) }
+  }, [props.rootRef])
+
+  return (
+    <div
+      ref={props.rootRef}
+      style={{ ...S.orbit, ...props.style }}
+      role="dialog"
+      aria-label={t('panel.title')}
+      tabIndex={-1}
+      onKeyDown={(event) => { if (event.key === 'Escape') props.onClose() }}
+    >
+      <style>{ORBIT_CSS}</style>
+      <div style={S.orbitHead}>
+        <span style={S.orbitTitle}>{t('panel.title')}</span>
+        <span style={S.orbitLive}><span style={S.orbitLiveDot} />{t('orbit.live')}</span>
+        <span style={{ flex: 1 }} />
+        <span style={S.orbitSummary}>{summary}</span>
+        <Button size="sm" variant="ghost" icon={<IconRefreshOutline16 />} aria-label={t('panel.refresh')} disabled={props.busy} onClick={props.onRefresh} />
+      </div>
+
+      {props.error !== null && (
+        <div style={S.orbitError} role="alert">
+          <span style={{ flex: 1 }}>{props.error.text}</span>
+          {props.error.source === 'poll' && (
+            <Button size="sm" variant="ghost" onClick={props.onRefresh}>{t('panel.retry')}</Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={props.onDismissError} aria-label={t('panel.dismissError')}>
+            <IconCloseOutline16 />
+          </Button>
+        </div>
+      )}
+
+      <div style={{ ...S.orbitWrap, ...(allDone ? S.orbitWrapDone : {}) }}>
+        <div style={S.orbitRing} />
+        <div style={S.orbitCore}>
+          <span style={S.orbitPm}>PM</span>
+          <span style={S.orbitCoreBig}>{working}</span>
+          <span style={S.orbitCoreSmall}>{working > 0 ? t('status.working') : allDone ? t('status.done') : t('status.idle')}</span>
+        </div>
+        {roles.map((role, index) => {
+          const angle = ((ORBIT_ANGLE[index % ORBIT_ANGLE.length] ?? 0) * Math.PI) / 180
+          const x = Math.cos(angle) * ORBIT_RADIUS
+          const y = Math.sin(angle) * ORBIT_RADIUS
+          return (
+            <div
+              key={role.id}
+              className="dshteam-orbit-node"
+              data-state={role.state}
+              data-clickable={role.workerId === undefined ? 'false' : 'true'}
+              style={{ ...S.orbitNode, transform: `translate(calc(-50% + ${String(x)}px), calc(-50% + ${String(y)}px))` }}
+              role={role.workerId === undefined ? undefined : 'button'}
+              tabIndex={role.workerId === undefined ? -1 : 0}
+              title={role.workerId === undefined ? role.name : t('orbit.worker')}
+              aria-label={`${role.name} · ${t(`status.${role.state}`)}`}
+              onClick={() => { if (role.workerId !== undefined) props.onOpenWorker(role.workerId) }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                if (role.workerId !== undefined) props.onOpenWorker(role.workerId)
+              }}
+            >
+              {role.state === 'working' && <span className="dshteam-orbit-progress" />}
+              {role.state === 'working' && <span className="dshteam-orbit-halo" />}
+              <span style={S.orbitInitial}>{role.id.charAt(0).toUpperCase()}</span>
+              <span style={S.orbitLabel}>
+                <span style={{
+                  ...S.orbitLabelDot,
+                  ...(role.state === 'working' ? S.orbitLabelDotOn
+                    : role.state === 'blocked' ? S.orbitLabelDotWarn
+                      : role.state === 'done' ? S.orbitLabelDotDone : {}),
+                }} />
+                {role.name}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={S.orbitFoot}>
+        <span>{props.loadedAt === null ? t('footer.synced') : t('footer.updated', { time: clockOf(props.loadedAt) })}</span>
+        <span style={{ flex: 1 }} />
+        {team?.paused === true && (
+          <Button size="sm" variant="primary" disabled={props.busy} onClick={props.onResume}>{t('paused.resume')}</Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The sidebar launcher entry plus the status-only team ring.
  * @param props - sidebar owner share, the global session hook, and the plugin's injected face.
  * @returns the launcher button and, while open, the panel.
  */
 export function TeamsLauncher(props: TeamsLauncherProps): React.ReactNode {
   const t = props.t ?? zhTranslate
-  const { wide, api, openSession, openWorker } = props
+  const { wide, api, openWorker } = props
   const useSessions = props.useSessions as (selector: (state: SessionListLocal) => unknown) => unknown
   const currentSessionId = useSessions(state => state.current) as string | undefined
-  const sessionsById = useSessions(state => state.byId) as Record<string, { running?: boolean } | undefined>
 
   const [open, setOpen] = React.useState(false)
-  const [selected, setSelected] = React.useState<string | undefined>(undefined)
   const [snapshot, setSnapshot] = React.useState<TeamsSnapshot | null>(null)
   /** Which coordinator the retained `snapshot` was fetched for (null-team answers carry no id). */
   const [snapshotFor, setSnapshotFor] = React.useState<string | undefined>(undefined)
   const [error, setError] = React.useState<PanelError | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [loadedAt, setLoadedAt] = React.useState<Date | null>(null)
-  const [drafts, setDrafts] = React.useState<Drafts>(emptyDrafts)
 
   // `useRef<T>(null)` types as `RefObject<T>` — React 18's exact `ref` shape.
   // `useRef<T | null>(null)` would infer `MutableRefObject<T | null>`, which the
   // DOM `ref` prop rejects (its `current` is invariant across the null union).
+  // Two refs: the wrapper contains both the launcher and the open panel, so the
+  // outside-pointer hook treats a click on the launcher as inside; the dialog
+  // ref is attached only to the panel element, for focus and Escape.
+  const containerRef = React.useRef<HTMLDivElement>(null)
   const rootRef = React.useRef<HTMLDivElement>(null)
   const buttonRef = React.useRef<HTMLButtonElement>(null)
   const loadRef = React.useRef<() => Promise<void>>(() => Promise.resolve())
   const pendingRef = React.useRef(false)
 
-  const updateDrafts = React.useCallback((update: (current: Drafts) => Drafts): void => {
-    setDrafts(current => update(current))
-  }, [])
+  const coordinatorId = currentSessionId ?? snapshot?.coordinators[0]?.sessionId
 
-  const coordinatorId = selected ?? currentSessionId ?? snapshot?.coordinators[0]?.sessionId
-  const coordinatorLabel = coordinatorId === undefined
-    ? t('coordinator.follow')
-    : snapshot?.coordinators.find(row => row.sessionId === coordinatorId)?.label
-      ?? (coordinatorId === currentSessionId ? t('coordinator.current') : coordinatorId)
-
-  // Every in-flight action carries the coordinator it was started for; a switch
-  // bumps the generation so a late resolution can neither close a form nor set
-  // an error that belongs to the coordinator the user just left.
+  // Every in-flight command carries the coordinator it was started for; a
+  // switch bumps the generation so a late answer cannot report on the new one.
   const coordinatorRef = React.useRef<string | undefined>(coordinatorId)
   coordinatorRef.current = coordinatorId
   const actionEpoch = React.useRef(0)
 
-  useDismissOnOutsidePointer(rootRef, open, setOpen)
+  useDismissOnOutsidePointer(containerRef, open, setOpen)
+
+  // Escape closes the panel even when another element holds focus: the shell's
+  // composer restores focus after the panel mounts, so the dialog's own keydown
+  // is not always reachable.
+  React.useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey) }
+  }, [open])
 
   // One poll chain per (open, coordinator) pair: it re-reads on open, on an
   // explicit refresh, and on a timer, and aborts its in-flight request on
@@ -1676,63 +2098,58 @@ export function TeamsLauncher(props: TeamsLauncherProps): React.ReactNode {
       live = false
       clearInterval(timer)
       controller.abort()
-      // The aborted request settles asynchronously; clearing the overlap guard
-      // here lets the next coordinator's first read start immediately instead
-      // of waiting a poll period for a request that is already dead.
       pendingRef.current = false
       loadRef.current = () => Promise.resolve()
     }
   }, [open, coordinatorId, api, t])
 
-  // Task ids, errors, and the "last updated" stamp are all per coordinator, so a
-  // switch drops them; the global roster and the user's free-text drafts stay.
-  // The epoch bump retires any command still in flight for the old coordinator.
+  // A coordinator switch drops its last-read answer and any message about it.
   React.useEffect(() => {
     actionEpoch.current += 1
     setLoadedAt(null)
     setError(null)
     setBusy(false)
-    setDrafts(current => ({ ...current, assign: { ...current.assign, dependsOn: [] }, messageOpen: null }))
   }, [coordinatorId])
 
-  const runAction = React.useCallback((action: TeamsAction, onAccepted?: () => void): void => {
+  /** Resume the paused scheduler and re-read the board. */
+  const resume = React.useCallback((): void => {
     const scope = coordinatorRef.current
     if (scope === undefined) return
     const epoch = ++actionEpoch.current
-    /** Whether this operation still owns the panel it started in. */
     const current = (): boolean => operationStillApplies(scope, coordinatorRef.current, epoch, actionEpoch.current)
     setBusy(true)
-    setError(null)
-    void api.action(scope, action)
-      .then(() => {
-        // A late answer for a coordinator the user left must not close a form
-        // or refresh state that now belongs to someone else.
-        if (!current()) return
-        onAccepted?.()
-        return loadRef.current()
-      })
-      .catch((failure: unknown) => {
-        if (current()) setError({ text: errorText(failure, t), source: 'action' })
-      })
-      .finally(() => {
-        if (current()) setBusy(false)
-      })
+    void api.action(scope, { action: 'resume' })
+      .then(() => { if (current()) return loadRef.current() })
+      .catch((failure: unknown) => { if (current()) setError({ text: errorText(failure, t), source: 'action' }) })
+      .finally(() => { if (current()) setBusy(false) })
   }, [api, t])
 
-  /** Navigation refusals (an unknowable session) belong on the error line, not in the console. */
-  const openAndReport = React.useCallback((task: Promise<void>): void => {
-    void task.catch((failure: unknown) => { setError({ text: errorText(failure, t), source: 'action' }) })
-  }, [t])
+  /**
+   * Navigation refusals (an unknowable session) belong on the error line, not
+   * in the console. A refusal that lands after the user switched coordinator is
+   * dropped like a late command result, so it cannot surface on the new one.
+   */
+  const openWorkerAndReport = React.useCallback((workerId: string): void => {
+    const scope = coordinatorRef.current
+    if (scope === undefined) return
+    const epoch = actionEpoch.current
+    void openWorker(scope, workerId).catch((failure: unknown) => {
+      if (operationStillApplies(scope, coordinatorRef.current, epoch, actionEpoch.current)) {
+        setError({ text: errorText(failure, t), source: 'action' })
+      }
+    })
+  }, [openWorker, t])
 
   const panelStyle = useAnchoredStyle(buttonRef, open)
-  // The badge counts the coordinator the launcher is scoped to, never the last
-  // snapshot's team, which can belong to a coordinator the user just left.
-  const summary = summarise(scopedTeam(snapshot, coordinatorId, snapshotFor).team)
+  const scoped = scopedTeam(snapshot, coordinatorId, snapshotFor)
+  const roles = orbitRoles(scoped.team, snapshot?.specialists ?? [])
+  const working = roles.filter(role => role.state === 'working').length
 
   const button = (
     <button
       ref={buttonRef}
       type="button"
+      className="dshteam-launch"
       style={{ ...S.button, ...(wide ? S.buttonWide : S.buttonRail) }}
       aria-label={t('launcher.aria')}
       aria-haspopup="dialog"
@@ -1741,38 +2158,41 @@ export function TeamsLauncher(props: TeamsLauncherProps): React.ReactNode {
     >
       <span style={S.buttonIcon}><IconUserOutline16 size={wide ? 16 : 18} /></span>
       {wide && <span style={S.buttonLabel}>{t('launcher.label')}</span>}
-      {wide && summary.total > 0 && (
-        <span style={S.buttonCount}>{summary.active > 0 ? summary.active : summary.total}</span>
+      {wide && roles.length > 0 && (
+        <span style={S.buttonDots}>
+          {roles.slice(0, 3).map(role => (
+            <span
+              key={role.id}
+              style={{
+                ...S.buttonDot,
+                ...(role.state === 'working' ? S.buttonDotOn
+                  : role.state === 'blocked' ? S.buttonDotWarn : {}),
+              }}
+            />
+          ))}
+        </span>
       )}
+      {wide && working > 0 && <span style={S.buttonCount}>{working}</span>}
     </button>
   )
 
   return (
-    <div ref={rootRef} style={{ ...S.section, ...(wide ? {} : S.sectionRail) }}>
+    <div ref={containerRef} style={{ ...S.section, ...(wide ? {} : S.sectionRail) }}>
+      <style>{LAUNCHER_CSS}</style>
       {wide ? button : <Tooltip label={t('launcher.tooltip')} delayMs={500} side="right">{button}</Tooltip>}
       {open && (
-        <TeamsPanel
+        <OrbitPanel
           snapshot={snapshot}
           snapshotFor={snapshotFor}
+          coordinatorId={coordinatorId}
           error={error}
           busy={busy}
           loadedAt={loadedAt}
-          coordinatorId={coordinatorId}
-          coordinatorLabel={coordinatorLabel}
-          currentSessionId={currentSessionId}
-          sessionsById={sessionsById}
-          drafts={drafts}
           t={t}
-          onDrafts={updateDrafts}
-          onSelectCoordinator={(sessionId) => { setSelected(sessionId === currentSessionId ? undefined : sessionId) }}
           onRefresh={() => { void loadRef.current() }}
-          onOpenSession={(sessionId) => { openAndReport(openSession(sessionId)) }}
-          onOpenWorker={(workerId) => {
-            if (coordinatorId === undefined) return
-            openAndReport(openWorker(coordinatorId, workerId))
-          }}
-          onAction={runAction}
+          onOpenWorker={(workerId) => { openWorkerAndReport(workerId) }}
           onDismissError={() => { setError(null) }}
+          onResume={resume}
           onClose={() => { setOpen(false) }}
           style={panelStyle}
           rootRef={rootRef}
@@ -1788,10 +2208,159 @@ interface SessionListLocal {
   byId: Record<string, { running?: boolean } | undefined>
 }
 
+// -------------------------------------------------------------------- settings
+
+/** Injected face of the Settings → Teams section. */
+export interface TeamsSettingsInjected {
+  api: TeamsSettingsApi
+  t?: Translate
+}
+
+/** The Settings → Teams page: role skills, the ponytail level, and the auto-continue budget. */
+export function TeamsSettingsSection(props: TeamsSettingsInjected): React.ReactNode {
+  const t = props.t ?? zhTranslate
+  const [view, setView] = React.useState<TeamsRolesView | null>(null)
+  const [error, setError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState<string | null>(null)
+  const [saved, setSaved] = React.useState<string | null>(null)
+  const [drafts, setDrafts] = React.useState<Record<string, string>>({})
+  const [level, setLevel] = React.useState('full')
+  const [rounds, setRounds] = React.useState('8')
+
+  React.useEffect(() => {
+    let live = true
+    void props.api.roles().then(next => {
+      if (!live) return
+      setView(next)
+      setLevel(next.settings.ponytailLevel)
+      setRounds(String(next.settings.autoRounds))
+      setDrafts({
+        pm: next.pm.content,
+        ...Object.fromEntries(next.roles.map(role => [role.id, role.content])),
+      })
+      setError(null)
+    }).catch((failure: unknown) => {
+      if (live) setError(errorText(failure, t))
+    })
+    return () => { live = false }
+  }, [props.api, t])
+
+  const updateDraft = (id: string, value: string): void => {
+    setDrafts(current => ({ ...current, [id]: value }))
+  }
+
+  const accept = (next: TeamsRolesView, id: string): void => {
+    setView(next)
+    setLevel(next.settings.ponytailLevel)
+    setRounds(String(next.settings.autoRounds))
+    setDrafts({
+      pm: next.pm.content,
+      ...Object.fromEntries(next.roles.map(role => [role.id, role.content])),
+    })
+    setSaved(id)
+    setError(null)
+  }
+
+  const save = (id: string): void => {
+    setSaving(id)
+    void props.api.saveSkill(id, drafts[id] ?? '')
+      .then(next => { accept(next, id) })
+      .catch((failure: unknown) => { setError(errorText(failure, t)) })
+      .finally(() => { setSaving(null) })
+  }
+
+  const saveSettings = (): void => {
+    setSaving('settings')
+    void props.api.saveSettings({ ponytailLevel: level, autoRounds: Number(rounds) })
+      .then(next => { accept(next, 'settings') })
+      .catch((failure: unknown) => { setError(errorText(failure, t)) })
+      .finally(() => { setSaving(null) })
+  }
+
+  return (
+    <div style={S.settings}>
+      <div style={S.blockTitle}><IconUserOutline16 /><span>{t('settings.title')}</span></div>
+      {error !== null && <div style={S.error} role="alert">{error}</div>}
+      {view === null && error === null && <div style={S.hint}>{t('settings.loading')}</div>}
+      {saved !== null && <div style={S.hint}>{t('settings.saved')}</div>}
+
+      <div style={S.block}>
+        <div style={S.fieldLabel}>{t('settings.pm')}</div>
+        <div style={S.hint}>{t('settings.pmHint')}</div>
+        <textarea
+          style={S.textarea}
+          aria-label={t('settings.pm')}
+          value={drafts.pm ?? ''}
+          onChange={event => { updateDraft('pm', event.target.value) }}
+        />
+        <div style={S.inline}>
+          <Button size="sm" variant="primary" disabled={saving !== null} icon={<IconCheckOutline14 />} onClick={() => { save('pm') }}>
+            {t('settings.save')}
+          </Button>
+        </div>
+      </div>
+
+      {view !== null && view.roles.map(role => (
+        <div key={role.id} style={S.block}>
+          <div style={S.fieldLabel}>
+            {role.name}
+            <span style={S.modeTag}>{role.mode === 'write' ? t('role.write') : t('role.read')}</span>
+          </div>
+          <textarea
+            style={S.textarea}
+            aria-label={`${role.name} skill`}
+            value={drafts[role.id] ?? ''}
+            onChange={event => { updateDraft(role.id, event.target.value) }}
+          />
+          <div style={S.inline}>
+            <Button size="sm" variant="primary" disabled={saving !== null} icon={<IconCheckOutline14 />} onClick={() => { save(role.id) }}>
+              {t('settings.save')}
+            </Button>
+          </div>
+        </div>
+      ))}
+
+      {view !== null && (
+        <div style={S.block}>
+          <div style={S.inline}>
+            <span style={S.fieldLabel}>{t('settings.ponytail')}</span>
+            <select style={S.select} aria-label={t('settings.ponytail')} value={level} onChange={event => { setLevel(event.target.value) }}>
+              <option value="lite">lite</option>
+              <option value="full">full</option>
+              <option value="ultra">ultra</option>
+            </select>
+            <span style={S.fieldLabel}>{t('settings.autoRounds')}</span>
+            <Input
+              style={{ width: 72 }}
+              inputMode="numeric"
+              aria-label={t('settings.autoRounds')}
+              value={rounds}
+              onChange={event => { setRounds(event.target.value) }}
+            />
+            <Button size="sm" variant="primary" disabled={saving !== null} icon={<IconCheckOutline14 />} onClick={saveSettings}>
+              {t('settings.save')}
+            </Button>
+          </div>
+          <div style={S.hint}>{t('settings.skillHint')}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ------------------------------------------------------------------- plugin
 
 /** Required client services: slot composition, session navigation, and locale. */
 export const inject = ['slots', 'sessions', 'locale']
+
+/** Plugin config this half reads; one row configures both halves of the package. */
+export interface Config {
+  /**
+   * Whether this half registers its `sidebar.launcher` entry. Default true; the
+   * AselDev profile sets it false because the office owns that entry.
+   */
+  showLauncher?: boolean
+}
 
 /** The slice of the client locale service this plugin uses. */
 interface LocaleLike {
@@ -1816,12 +2385,29 @@ interface ClientLikeContext {
 }
 
 /**
+ * Whether this half registers its `sidebar.launcher` entry.
+ *
+ * An explicit row setting `false` wins outright. Otherwise the host's answer
+ * decides, and anything but a firm `false` — including no answer at all —
+ * keeps the entry: a host that cannot answer must not make the panel vanish
+ * silently.
+ * @param config - the plugin row config this half received, when any.
+ * @param hostShowLauncher - the host's `showLauncher` answer, if it was read.
+ * @returns whether to register the sidebar entry.
+ */
+export function launcherVisible(config: Config, hostShowLauncher?: boolean): boolean {
+  if (config.showLauncher === false) return false
+  return hostShowLauncher !== false
+}
+
+/**
  * Client plugin body: dictionaries, then one `sidebar.launcher` contribution.
  * The slot is declared by ui-sidebar, so the registration waits on that
  * declaration instead of racing it.
  * @param ctx - client root context.
+ * @param config - plugin row config; `showLauncher: false` leaves the sidebar entry to the office.
  */
-export function apply(ctx: ClientLikeContext): void {
+export function apply(ctx: ClientLikeContext, config: Config = {}): void {
   ctx.effect(() => ctx.locale.register(TEAMS_NS, { zh, en }), 'aseldev-teams: dictionaries')
 
   const t = ctx.locale.bind(TEAMS_NS)
@@ -1843,12 +2429,39 @@ export function apply(ctx: ClientLikeContext): void {
 
   const injected = (): TeamsInjected => ({ api, openSession, openWorker })
 
-  ctx.slots.inject('sidebar.launcher', () => ctx.slots.register({
-    name: 'sidebar.launcher',
+  // The sidebar entry is the office's in the shipped profile. The row config
+  // states it directly; otherwise the host answers once, because a plugin row
+  // config does not reach the browser. Neither read blocks the other
+  // registrations in this apply.
+  ctx.effect(() => {
+    let dispose: (() => void) | undefined
+    let closed = false
+    const install = (hostShowLauncher?: boolean): void => {
+      if (closed || dispose !== undefined || !launcherVisible(config, hostShowLauncher)) return
+      dispose = ctx.slots.inject('sidebar.launcher', () => ctx.slots.register({
+        name: 'sidebar.launcher',
+        id: 'teams',
+        order: 20,
+        registrant: '@aseldev/dsh-teams',
+        locale: TEAMS_NS,
+        inject: injected,
+      }, TeamsLauncher))
+    }
+    if (config.showLauncher === false) install(false)
+    // A refused or unreachable route answers no flag, which keeps the entry.
+    else void api.launcher().then(install, () => { install() })
+    return () => {
+      closed = true
+      dispose?.()
+    }
+  }, 'aseldev-teams: sidebar launcher')
+
+  const settingsApi = createTeamsSettingsApi(t)
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
     id: 'teams',
-    order: 20,
-    registrant: '@aseldev/dsh-teams',
-    locale: TEAMS_NS,
-    inject: injected,
-  }, TeamsLauncher))
+    order: 40,
+    label: () => t('settings.nav'),
+    inject: (): TeamsSettingsInjected => ({ api: settingsApi, t }),
+  }, TeamsSettingsSection))
 }

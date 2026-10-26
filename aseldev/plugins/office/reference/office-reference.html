@@ -1,0 +1,1823 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>ASELDEV AI HQ</title>
+
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #111720;
+    --panel-raised: #171e29;
+    --line: #283241;
+    --text: #e8eef6;
+    --muted: #9aa9bc;
+    --cyan: #37bfff;
+    --amber: #ffcb85;
+    --green: #8fc5a1;
+    --red: #f2929c;
+    --radius: 12px;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  button, input, select, textarea { font: inherit; }
+  button, select, input[type="range"] { cursor: pointer; }
+  button, input, select, textarea { accent-color: var(--cyan); }
+  button { white-space: nowrap; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, select:focus-visible,
+  textarea:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 4px;
+  }
+  [hidden] { display: none !important; }
+
+  .app { max-width: 1740px; padding: 24px 30px 28px; margin: auto; }
+  .topbar, .brand, .toolbar, .scene-heading, .scene-footer,
+  .section-heading, .identity, .dialog-actions, .control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .topbar { justify-content: space-between; padding-bottom: 23px; }
+  .brand { gap: 13px; }
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    background: #142535;
+    border: 1px solid #2c4b62;
+    border-radius: 10px;
+  }
+  .brand-mark svg { width: 25px; height: 25px; }
+  .brand strong { display: block; font-size: 17px; letter-spacing: .09em; }
+  .brand small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+  .source {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .source-dot { width: 7px; height: 7px; background: var(--amber); border-radius: 50%; }
+
+  .overview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 24px 0 28px;
+    border-top: 1px solid var(--line);
+  }
+  h1 { font-size: clamp(23px, 3vw, 34px); margin: 0; font-weight: 600; letter-spacing: -.045em; }
+  .overview p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+  .metrics { display: flex; gap: 30px; flex-shrink: 0; }
+  .metric strong { display: block; font-size: 25px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .metric span { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .metric.review strong { color: var(--amber); }
+
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; }
+  .scene, .inspector { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .scene { background: #0e141d; min-width: 0; }
+  .scene-heading {
+    min-height: 56px;
+    padding: 12px 18px;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    background: #111822;
+  }
+  .scene-heading strong { font-size: 12px; font-weight: 600; }
+  .scene-heading small { color: var(--muted); font-size: 11px; }
+  .viewport {
+    overflow: hidden;
+    position: relative;
+    background:
+      radial-gradient(ellipse at 48% 52%, #1c2837 0%, #111a25 44%, #0d131c 76%);
+  }
+  #office {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+  }
+  #office.dragging { cursor: grabbing; }
+  .viewport-note {
+    position: absolute;
+    left: 18px;
+    top: 16px;
+    color: #94a6bd;
+    font: 10px/1.7 Consolas, monospace;
+    pointer-events: none;
+  }
+  .viewport-note strong { color: #c1cfdf; font-weight: 400; }
+  .scene-footer {
+    justify-content: space-between;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border-top: 1px solid var(--line);
+  }
+  .toolbar { gap: 6px; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 8px 11px;
+    background: #19222e;
+    color: #d9e3ef;
+    font-size: 11px;
+    line-height: 1.35;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover:not(:disabled) { background: #243143; border-color: #46596f; }
+  .btn.primary { background: #17354a; color: #bce8ff; border-color: #2e617f; }
+  .btn[aria-pressed="true"] { color: #bce8ff; border-color: #37779a; background: #173144; }
+  .btn.danger { color: #f5b3bc; }
+  .zoom { display: flex; gap: 7px; align-items: center; margin-right: 5px; }
+  .zoom input { width: 76px; }
+  .zoom output { min-width: 34px; color: var(--muted); font: 10px Consolas, monospace; }
+
+  .inspector { background: var(--panel); padding: 20px; }
+  .eyebrow { font: 10px/1.5 Consolas, monospace; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+  .identity { align-items: center; margin-top: 20px; gap: 14px; }
+  .portrait {
+    width: 68px;
+    height: 76px;
+    flex: 0 0 68px;
+    border: 1px solid #344457;
+    background: #1b2837;
+    border-radius: 10px;
+  }
+  .identity h2 { font-size: 18px; font-weight: 600; margin: 0 0 6px; overflow-wrap: anywhere; }
+  .identity p { color: var(--muted); margin: 0; font-size: 11px; line-height: 1.6; }
+  .badge {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 11px;
+    padding: 5px 8px;
+    margin-top: 16px;
+    border: 1px solid #3b4c60;
+    border-radius: 5px;
+  }
+  .badge::before { content: ""; width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
+  .inspector-description { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 18px 0; }
+  .detail { padding: 16px 0; border-top: 1px solid var(--line); }
+  .detail-label { font-size: 10px; color: var(--muted); margin-bottom: 8px; }
+  .detail-value { font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+  .progress-meta { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 10px; }
+  .progress-track { height: 4px; border-radius: 4px; background: #263345; overflow: hidden; }
+  .progress-track span { display: block; height: 100%; background: var(--cyan); transition: width .25s; }
+  .decisions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .local-controls { padding-top: 15px; border-top: 1px solid var(--line); }
+  .local-controls summary { color: var(--muted); font-size: 11px; cursor: pointer; }
+  .local-controls label { display: block; font-size: 11px; color: var(--muted); margin-top: 14px; }
+  .local-controls select { width: 100%; margin-top: 7px; }
+  .local-controls input { width: 100%; margin-top: 10px; }
+  .local-controls .btn { margin-top: 13px; width: 100%; }
+  .owner-note { color: var(--amber); font-size: 11px; line-height: 1.8; }
+
+  .roster-section { margin-top: 24px; }
+  .section-heading { justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; }
+  .section-heading h2 { margin: 0; font-size: 13px; font-weight: 600; }
+  .section-heading small { color: var(--muted); font-size: 11px; }
+  .roster {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  .agent-card {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    text-align: left;
+    white-space: normal;
+    min-width: 0;
+    padding: 13px;
+    background: #111923;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+  }
+  .agent-card:hover { background: #192431; }
+  .agent-card[aria-pressed="true"] { border-color: #4b87a8; background: #172c3d; }
+  .agent-monogram {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 34px;
+    flex: 0 0 32px;
+    border: 1px solid #415367;
+    border-radius: 5px;
+    font: 12px Consolas, monospace;
+  }
+  .agent-card .agent-copy { min-width: 0; flex: 1; }
+  .agent-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+  .agent-card small { display: block; color: var(--muted); margin-top: 4px; font-size: 10px; }
+  .agent-card .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .empty { grid-column: 1 / -1; padding: 24px; border: 1px dashed var(--line); color: var(--muted); font-size: 13px; border-radius: 8px; }
+  .bottom-line { margin-top: 20px; display: flex; justify-content: space-between; gap: 20px; color: var(--muted); font-size: 10px; line-height: 1.8; }
+  .legend { display: flex; flex-wrap: wrap; gap: 13px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend i { width: 5px; height: 5px; border-radius: 50%; background: var(--color); }
+
+  dialog {
+    width: min(720px, calc(100% - 32px));
+    max-height: 88dvh;
+    overflow: auto;
+    padding: 26px;
+    background: #141d28;
+    color: var(--text);
+    border: 1px solid #405168;
+    border-radius: 14px;
+    box-shadow: 0 30px 100px #0009;
+  }
+  dialog::backdrop { background: #050a12c9; backdrop-filter: blur(5px); }
+  dialog h2 { margin: 0 0 10px; font-size: 22px; font-weight: 600; }
+  dialog p { color: var(--muted); font-size: 12px; line-height: 1.8; }
+  input[type="text"], select, textarea {
+    border: 1px solid #3a4b60;
+    border-radius: 6px;
+    background: #0d151f;
+    color: var(--text);
+    padding: 10px;
+  }
+  textarea { display: block; width: 100%; min-height: 300px; resize: vertical; font: 12px/1.7 Consolas, monospace; tab-size: 2; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px; }
+  .form-grid label { font-size: 12px; color: var(--muted); }
+  .form-grid input, .form-grid select { display: block; width: 100%; margin-top: 7px; }
+  .full { grid-column: 1 / -1; }
+  .dialog-actions { justify-content: flex-end; flex-wrap: wrap; margin-top: 20px; }
+  .error { color: #ffadb6; font-size: 12px; line-height: 1.6; margin: 10px 0 0; min-height: 19px; }
+  .config-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: 16px 0; }
+  code { color: #bce8ff; font-family: Consolas, monospace; }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: min(90vw, 520px);
+    background: #203447;
+    border: 1px solid #52718c;
+    color: #e6f1fc;
+    padding: 12px 18px;
+    border-radius: 8px;
+    box-shadow: 0 12px 40px #0006;
+    font-size: 12px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* Sprite transforms stay on outer groups; animation owns only inner groups. */
+  .sprite-pixels { shape-rendering: crispEdges; }
+  .station { cursor: pointer; outline: none; }
+  .station .selection { opacity: 0; transition: opacity .15s; }
+  .station:hover .selection { opacity: .45; }
+  .station.selected .selection, .station:focus-visible .selection { opacity: 1; }
+  .station:focus-visible .nameplate { stroke: #e8f6ff; stroke-width: 2; }
+  .station[data-status="offline"] .equipment { opacity: .5; }
+  .typing { animation: typing .8s steps(2, end) infinite; }
+  .blink { animation: blink 6.4s steps(1, end) infinite; }
+  .signal { animation: signal 3.3s steps(2, end) infinite; }
+  .route { stroke-dasharray: 4 8; animation: route 4s linear infinite; }
+  .eyes { transform-box: fill-box; transform-origin: center; }
+  @keyframes typing { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+  @keyframes blink { 0%, 93%, 97%, 100% { opacity: 1; } 94%, 96% { opacity: .15; } }
+  @keyframes signal { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+  @keyframes route { to { stroke-dashoffset: -48; } }
+  body.motion-off .typing, body.motion-off .blink,
+  body.motion-off .signal, body.motion-off .route { animation: none; }
+
+  @media (min-width: 1600px) {
+    .workspace { grid-template-columns: minmax(0, 1fr) 310px; }
+    .inspector { padding: 25px; }
+  }
+  @media (max-width: 1100px) {
+    .app { padding: 20px; }
+    .workspace { grid-template-columns: minmax(0, 1fr); }
+    .inspector { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+    .inspector > .eyebrow, .inspector > .identity,
+    .inspector > .badge, .inspector > .inspector-description { grid-column: 1; }
+    .inspector > .identity { margin-top: 12px; }
+    .inspector > .badge { justify-self: start; }
+    .inspector > .detail, .inspector > .local-controls,
+    .inspector > .decisions, .inspector > .owner-note { grid-column: 2; }
+    .inspector > .detail:first-of-type { grid-row: 1 / 3; }
+    .inspector > .detail:nth-of-type(2) { grid-row: 3 / 5; }
+    .inspector > .detail:nth-of-type(3) { grid-row: 5; }
+  }
+  @media (max-width: 640px) {
+    .app { padding: 16px 12px; }
+    .topbar { align-items: flex-start; }
+    .source { max-width: 125px; line-height: 1.5; font-size: 10px; }
+    .brand strong { font-size: 13px; }
+    .brand small { font-size: 10px; }
+    .overview { display: block; padding: 22px 0; }
+    .metrics { margin-top: 23px; justify-content: space-between; gap: 14px; }
+    .metric strong { font-size: 22px; }
+    .viewport { overflow-x: auto; }
+    #office { width: 850px; max-width: none; }
+    .viewport-note { display: none; }
+    .scene-heading { padding-inline: 12px; }
+    .scene-heading small { font-size: 10px; }
+    .scene-footer { padding: 10px; gap: 12px; }
+    .inspector { display: block; padding: 20px; }
+    .roster { grid-template-columns: 1fr 1fr; }
+    .agent-card { padding: 11px 9px; gap: 8px; }
+    .agent-monogram { width: 25px; flex-basis: 25px; }
+    .agent-card small { font-size: 9px; }
+    .bottom-line { display: block; }
+    .bottom-line > span { display: block; margin-top: 12px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .full { grid-column: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+
+<body>
+<main class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 28 28">
+          <path d="M3 24 12 4h5l8 20h-6l-5-13-5 13Z" fill="#37bfff"/>
+          <path d="M10 18h9v4h-9z" fill="#b6e7ff"/>
+        </svg>
+      </div>
+      <div>
+        <strong>ASELDEV AI HQ</strong>
+        <small>Your direction. Your team. Your office.</small>
+      </div>
+    </div>
+    <div class="source">
+      <span class="source-dot" id="sourceDot"></span>
+      <span id="sourceLabel">Local demo · disconnected</span>
+    </div>
+  </header>
+
+  <section class="overview" aria-label="Project overview">
+    <div>
+      <h1 id="projectName">Building the next iteration.</h1>
+      <p id="projectObjective"></p>
+    </div>
+    <div class="metrics">
+      <div class="metric"><strong id="agentCount">6</strong><span>AI teammates</span></div>
+      <div class="metric"><strong id="workingCount">3</strong><span>Working</span></div>
+      <div class="metric review"><strong id="reviewCount">1</strong><span>Awaiting you</span></div>
+      <div class="metric"><strong id="projectProgress">0%</strong><span>Task average</span></div>
+    </div>
+  </section>
+
+  <div class="workspace">
+    <section class="scene" aria-label="Interactive office">
+      <div class="scene-heading">
+        <strong>Headquarters / Floor 01</strong>
+        <small id="floorSummary">6 stations + your command desk</small>
+      </div>
+
+      <div class="viewport" id="viewport">
+        <div class="viewport-note" aria-hidden="true">
+          <strong>OFFICE VIEW</strong><br>
+          Select a teammate to inspect<br>
+          Drag to explore · Fit to recenter
+        </div>
+        <svg id="office" viewBox="0 0 1440 810"
+             role="group" aria-label="Isometric office. Select a workstation or use the team roster.">
+          <title>ASELDEV AI headquarters</title>
+          <desc>A human boss at the central command desk, surrounded by a configurable team of AI agents.</desc>
+        </svg>
+      </div>
+
+      <div class="scene-footer">
+        <div class="toolbar" aria-label="Office view controls">
+          <div class="zoom">
+            <label for="zoom" class="eyebrow">Zoom</label>
+            <input id="zoom" type="range" min="70" max="180" value="100" step="5">
+            <output id="zoomValue" for="zoom">100%</output>
+          </div>
+          <button class="btn" id="fit">Fit</button>
+          <button class="btn" id="labels" aria-pressed="true">Labels</button>
+          <button class="btn" id="links" aria-pressed="false">Reporting lines</button>
+          <button class="btn" id="motion" aria-pressed="true">Motion</button>
+        </div>
+        <button class="btn" id="selectBoss">Your desk</button>
+      </div>
+    </section>
+
+    <aside class="inspector" aria-label="Selected teammate">
+      <div class="eyebrow">At the desk</div>
+
+      <div class="identity">
+        <svg class="portrait" id="portrait" viewBox="0 0 68 76" aria-hidden="true"></svg>
+        <div>
+          <h2 id="personName">You</h2>
+          <p id="personRole">Founder & team owner</p>
+        </div>
+      </div>
+
+      <div class="badge" id="personStatus">In command</div>
+      <p class="inspector-description" id="personDescription"></p>
+
+      <div class="detail">
+        <div class="detail-label" id="taskLabel">Your focus</div>
+        <div class="detail-value" id="personTask"></div>
+      </div>
+      <div class="detail">
+        <div class="detail-label" id="reportsLabel">Reporting structure</div>
+        <div class="detail-value" id="personReports"></div>
+      </div>
+      <div class="detail">
+        <div class="progress-meta">
+          <span id="progressLabel">Team task average</span>
+          <span id="personProgress">0%</span>
+        </div>
+        <div class="progress-track" id="personProgressBar" role="progressbar"
+             aria-label="Task progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="personProgressFill"></span>
+        </div>
+      </div>
+
+      <div class="decisions" id="decisions" hidden>
+        <button class="btn primary" id="approve">Approve</button>
+        <button class="btn" id="revise">Request revision</button>
+      </div>
+
+      <p class="owner-note" id="ownerNote">You set priorities and make the final call.</p>
+
+      <details class="local-controls" id="localControls" hidden>
+        <summary>Local demo controls</summary>
+        <label for="editStatus">Agent status</label>
+        <select id="editStatus" data-focus-key="edit-status"></select>
+        <label for="editProgress">Task progress</label>
+        <input id="editProgress" data-focus-key="edit-progress" type="range" min="0" max="100" step="1">
+        <button class="btn danger" id="removeAgent">Remove this agent</button>
+      </details>
+    </aside>
+  </div>
+
+  <section class="roster-section" aria-labelledby="teamHeading">
+    <div class="section-heading">
+      <div>
+        <h2 id="teamHeading">Your team</h2>
+        <small id="teamCaption">The project manager coordinates. You decide.</small>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="advanceDemo">Advance demo</button>
+        <button class="btn primary" id="addAgent">+ Add agent</button>
+        <button class="btn" id="configure">Team JSON</button>
+      </div>
+    </div>
+    <div class="roster" id="roster"></div>
+  </section>
+
+  <footer class="bottom-line">
+    <div class="legend" aria-label="Agent status legend">
+      <span><i style="--color:#8fc5a1"></i>Working</span>
+      <span><i style="--color:#ffcb85"></i>Needs approval</span>
+      <span><i style="--color:#f2929c"></i>Blocked</span>
+      <span><i style="--color:#8bbcff"></i>Done</span>
+      <span><i style="--color:#a4adbb"></i>Idle / queued</span>
+    </div>
+    <span>Self-contained SVG · No external assets · Changes stay in this page until you export the JSON.</span>
+  </footer>
+</main>
+
+<dialog id="configDialog" aria-labelledby="configTitle">
+  <h2 id="configTitle">A team that shapes its own office.</h2>
+  <p>
+    Edit the team snapshot below. Desks, floor space, reporting lines, and dashboards
+    are generated from the same data. Applying JSON starts a local demo.
+  </p>
+  <div class="config-actions">
+    <button class="btn" data-sample="6">6-agent sample</button>
+    <button class="btn" data-sample="12">12-agent sample</button>
+    <button class="btn" data-sample="24">24-agent sample</button>
+    <button class="btn" id="copyJSON">Copy JSON</button>
+  </div>
+  <label class="eyebrow" for="teamJSON">Team snapshot</label>
+  <textarea id="teamJSON" spellcheck="false" aria-describedby="configError"></textarea>
+  <div class="error" id="configError" role="alert"></div>
+  <details>
+    <summary>Connect your project management bot</summary>
+    <p>
+      Call <code>ASELDEV_HQ.setState(snapshot)</code> to replace the office,
+      <code>ASELDEV_HQ.setTeam(agents)</code> to replace only the team, or
+      <code>ASELDEV_HQ.updateAgent(id, patch)</code> to update one agent.
+      Listen for <code>hq:action</code> to receive approval and revision requests.
+      External snapshots require your integration to return the resulting state.
+    </p>
+  </details>
+  <div class="dialog-actions">
+    <button class="btn" data-close="configDialog">Cancel</button>
+    <button class="btn primary" id="applyJSON">Apply as local demo</button>
+  </div>
+</dialog>
+
+<dialog id="addDialog" aria-labelledby="addTitle">
+  <form id="addForm">
+    <h2 id="addTitle">Make room for a teammate.</h2>
+    <p>A new station is placed automatically. Your command desk stays at the center.</p>
+    <div class="form-grid">
+      <label>
+        Agent name
+        <input id="newName" type="text" maxlength="32" required placeholder="e.g. VECTOR" autocomplete="off">
+      </label>
+      <label>
+        Specialization
+        <select id="newRole"></select>
+      </label>
+      <label class="full">
+        Reports to
+        <select id="newManager"></select>
+      </label>
+      <label class="full">
+        Initial task
+        <input id="newTask" type="text" maxlength="180" placeholder="What should this teammate work on?">
+      </label>
+    </div>
+    <div class="error" id="addError" role="alert"></div>
+    <div class="dialog-actions">
+      <button class="btn" type="button" data-close="addDialog">Cancel</button>
+      <button class="btn primary" type="submit">Create station</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<noscript>This interactive office requires JavaScript to draw the scene and manage the team.</noscript>
+
+<script>
+(() => {
+  "use strict";
+
+  /*
+   * Integration:
+   *
+   * const snapshot = ASELDEV_HQ.getState();
+   * snapshot.project.name = "Your project";
+   * ASELDEV_HQ.setState(snapshot);
+   *
+   * ASELDEV_HQ.updateAgent("backend", {
+   *   status: "review",
+   *   progress: 100,
+   *   task: "API implementation ready for your review."
+   * });
+   *
+   * window.addEventListener("hq:action", event => {
+   *   const { action, agentId, demoApplied } = event.detail;
+   *   // Forward external approve/revise requests to your own authenticated service.
+   *   // Return its authoritative result through setState() or updateAgent().
+   * });
+   *
+   * No network, storage, credentials, or background simulation is used.
+   * Stable IDs preserve selection. managerId links must be acyclic.
+   */
+
+  const SETTINGS = Object.freeze({
+    maxAgents: 24,
+    maxRowsPerWing: 4,
+    columnSpacing: 5.4,
+    rowSpacing: 4.4,
+    unit: 24,
+    wallHeight: 6.8,
+    viewportWidth: 1440,
+    viewportHeight: 810
+  });
+
+  const STATUS = Object.freeze({
+    working: { label: "Working", color: "#8fc5a1" },
+    review:  { label: "Needs your approval", color: "#ffcb85" },
+    blocked: { label: "Blocked", color: "#f2929c" },
+    queued:  { label: "Queued", color: "#b6b4ce" },
+    idle:    { label: "Idle", color: "#a4adbb" },
+    done:    { label: "Done", color: "#8bbcff" },
+    offline: { label: "Offline", color: "#8994a5" }
+  });
+
+  const ROLES = Object.freeze({
+    pm:       { title: "Project Manager",    short: "PM",  accent: "#73b9ec", screen: "kanban",  suit: "#34465f" },
+    backend:  { title: "Backend Developer",  short: "BE",  accent: "#83c7b3", screen: "terminal",suit: "#304941" },
+    design:   { title: "UI/UX Designer",     short: "UX",  accent: "#c3a5df", screen: "design",  suit: "#51415e" },
+    frontend: { title: "Frontend Developer", short: "FE",  accent: "#94baff", screen: "web",     suit: "#344b6b" },
+    qa:       { title: "QA Tester",          short: "QA",  accent: "#e6c18a", screen: "tests",   suit: "#554b36" },
+    devops:   { title: "DevOps Engineer",    short: "OPS", accent: "#91b995", screen: "charts",  suit: "#354c42" },
+    data:     { title: "Data Analyst",       short: "DA",  accent: "#a7bde5", screen: "charts",  suit: "#3c4860" },
+    security: { title: "Security Engineer",  short: "SEC", accent: "#dba0a9", screen: "terminal",suit: "#55404c" },
+    writer:   { title: "Technical Writer",   short: "DOC", accent: "#c1c6ae", screen: "web",     suit: "#464c42" },
+    research: { title: "Research Agent",     short: "R&D", accent: "#9ccbd2", screen: "kanban",  suit: "#36535b" },
+    general:  { title: "AI Specialist",      short: "AI",  accent: "#9eb2cb", screen: "terminal",suit: "#3a485d" }
+  });
+
+  const $ = id => document.getElementById(id);
+  const svg = $("office");
+  const NS = "http://www.w3.org/2000/svg";
+  const COS = Math.cos(Math.PI / 6);
+  const U = SETTINGS.unit;
+  const clone = value => JSON.parse(JSON.stringify(value));
+
+  let state;
+  let source = "demo";
+  let selectedId = "boss";
+  let layout;
+  let camera;
+  let zoom = 1;
+  let pan = { x: 0, y: 0 };
+  let showLabels = true;
+  let showLinks = false;
+  let motion = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let pending = new Set();
+  let toastTimer;
+  let drag = null;
+  let suppressClick = false;
+  let serial = 0;
+
+  function s(tag, attrs = {}, parent, content) {
+    const node = document.createElementNS(NS, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+    if (content !== undefined) node.textContent = content;
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function h(tag, className, parent, content) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (content !== undefined) node.textContent = content;
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function rect(g, x, y, width, height, fill, extra = {}) {
+    return s("rect", { x, y, width, height, fill, ...extra }, g);
+  }
+
+  function text(g, x, y, content, size = 11, fill = "#dbe8f4", extra = {}) {
+    return s("text", {
+      x, y, fill, "font-size": size,
+      "font-family": "Consolas, monospace", ...extra
+    }, g, content);
+  }
+
+  function line(g, a, b, stroke, width = 1, extra = {}) {
+    return s("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke, "stroke-width": width, ...extra }, g);
+  }
+
+  function polygon(g, points, fill, extra = {}) {
+    return s("polygon", { points: points.map(p => `${p.x},${p.y}`).join(" "), fill, ...extra }, g);
+  }
+
+  /* All scene objects use the same 30-degree projection. z is measured in world units. */
+  function p(x, y, z = 0) {
+    return { x: (x - y) * U * COS, y: (x + y) * U * .5 - z * U };
+  }
+
+  function plane(g, x, y, w, d, z, fill, extra = {}) {
+    return polygon(g, [p(x,y,z), p(x+w,y,z), p(x+w,y+d,z), p(x,y+d,z)], fill, extra);
+  }
+
+  function box(g, x, y, w, d, height, z = 0, colors = ["#303947","#1b2430","#242e3b"]) {
+    const [top, front, side] = colors;
+    polygon(g, [p(x,y+d,z), p(x+w,y+d,z), p(x+w,y+d,z+height), p(x,y+d,z+height)], front);
+    polygon(g, [p(x+w,y,z), p(x+w,y+d,z), p(x+w,y+d,z+height), p(x+w,y,z+height)], side);
+    return plane(g, x, y, w, d, z+height, top);
+  }
+
+  function wallSurface(g, x, y, z, left = false) {
+    const q = p(x,y,z);
+    return s("g", { transform: `matrix(${COS} ${left ? -.5 : .5} 0 1 ${q.x} ${q.y})` }, g);
+  }
+
+  function floorSurface(g, x, y, z = .02) {
+    const q = p(x,y,z);
+    return s("g", { transform: `matrix(${COS} .5 ${-COS} .5 ${q.x} ${q.y})` }, g);
+  }
+
+  function short(value, limit) {
+    return value.length > limit ? value.slice(0, limit-1) + "…" : value;
+  }
+
+  function meta(agent) { return ROLES[agent.role] || ROLES.general; }
+
+  function average() {
+    return state.agents.length
+      ? Math.round(state.agents.reduce((sum, agent) => sum + agent.progress, 0) / state.agents.length)
+      : 0;
+  }
+
+  function notify(message) {
+    clearTimeout(toastTimer);
+    $("toast").textContent = message;
+    $("toast").hidden = false;
+    toastTimer = setTimeout(() => { $("toast").hidden = true; }, 3600);
+  }
+
+  function stringField(value, label, max, fallback) {
+    if (value === undefined && fallback !== undefined) return fallback;
+    if (typeof value !== "string" || !value.trim() || value.length > max)
+      throw new Error(`${label} must be a nonempty string of at most ${max} characters.`);
+    return value.trim();
+  }
+
+  function validate(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw))
+      throw new Error("A team snapshot must be a JSON object.");
+    if (raw.schemaVersion !== 1)
+      throw new Error("schemaVersion must be 1.");
+    if (!Array.isArray(raw.agents) || raw.agents.length > SETTINGS.maxAgents)
+      throw new Error(`agents must be an array containing 0–${SETTINGS.maxAgents} agents.`);
+
+    const ids = new Set(["boss"]);
+
+    const agents = raw.agents.map((a, index) => {
+      if (!a || typeof a !== "object" || Array.isArray(a))
+        throw new Error(`Agent ${index+1} must be an object.`);
+
+      const id = stringField(a.id, "Agent ID", 64);
+      if (!/^[a-zA-Z0-9_-]+$/.test(id) || ids.has(id))
+        throw new Error(`ID "${id}" is duplicated, reserved, or contains unsupported characters.`);
+      ids.add(id);
+
+      const role = stringField(a.role, "Role", 40, "general");
+      const roleMeta = ROLES[role] || ROLES.general;
+      const status = a.status === undefined ? "idle" : a.status;
+      if (!Object.hasOwn(STATUS, status))
+        throw new Error(`Unknown status for "${id}". Use: ${Object.keys(STATUS).join(", ")}.`);
+
+      const progress = a.progress === undefined ? 0 : a.progress;
+      if (typeof progress !== "number" || !Number.isFinite(progress) || progress < 0 || progress > 100)
+        throw new Error(`Progress for "${id}" must be a number from 0 to 100.`);
+
+      const accent = a.accent === undefined ? roleMeta.accent : a.accent;
+      if (typeof accent !== "string" || !/^#[0-9a-f]{6}$/i.test(accent))
+        throw new Error(`Accent for "${id}" must be a six-digit hex color.`);
+
+      return {
+        id,
+        name: stringField(a.name, "Agent name", 32),
+        role,
+        title: stringField(a.title, "Agent title", 60, roleMeta.title),
+        status,
+        progress: status === "done" ? 100 : Math.round(progress),
+        task: stringField(a.task, "Task", 240, "No task assigned."),
+        managerId: stringField(a.managerId, "Manager ID", 64, "boss"),
+        accent
+      };
+    });
+
+    const map = new Map(agents.map(a => [a.id, a]));
+    for (const agent of agents) {
+      if (!ids.has(agent.managerId))
+        throw new Error(`Manager "${agent.managerId}" for "${agent.id}" does not exist.`);
+      const visited = new Set([agent.id]);
+      let cursor = agent.managerId;
+      while (cursor !== "boss") {
+        if (visited.has(cursor))
+          throw new Error(`Reporting cycle detected at "${agent.id}".`);
+        visited.add(cursor);
+        cursor = map.get(cursor).managerId;
+      }
+    }
+
+    return {
+      schemaVersion: 1,
+      boss: {
+        name: stringField(raw.boss?.name, "Boss name", 40, "You"),
+        title: stringField(raw.boss?.title, "Boss title", 60, "Founder & team owner")
+      },
+      project: {
+        name: stringField(raw.project?.name, "Project name", 80, "Building the next iteration."),
+        objective: stringField(raw.project?.objective, "Project objective", 240, "Set the direction. Let your AI team handle the work.")
+      },
+      agents
+    };
+  }
+
+  function sample(count = 6) {
+    const defaults = [
+      ["pm",       "ATLAS", "pm",       "working", 64, "Coordinate the release plan and delegate the next tasks."],
+      ["backend",  "FORGE", "backend",  "working", 72, "Build the task orchestration API."],
+      ["designer", "PIXEL", "design",   "review",  92, "Review the new workspace interface and interaction flow."],
+      ["frontend", "NOVA",  "frontend", "working", 58, "Implement the responsive project workspace."],
+      ["qa",       "PROBE", "qa",       "queued",  18, "Prepare regression coverage for the next build."],
+      ["devops",   "RELAY", "devops",   "idle",     0, "Await the approved deployment candidate."]
+    ];
+    const extraNames = ["VECTOR","GUARD","SCRIBE","SCOUT","ORBIT","PATCH","INDEX","TRACE","LUMEN","FRAME","CIPHER","SPARK","SCOPE","PORT","QUERY","PULSE","STACK","ECHO"];
+    const extraRoles = ["data","security","writer","research","backend","qa","frontend","devops","design"];
+
+    return {
+      schemaVersion: 1,
+      boss: { name: "You", title: "Founder & team owner" },
+      project: {
+        name: "Building the next iteration.",
+        objective: "An AI development studio, organized around your direction."
+      },
+      agents: Array.from({ length: count }, (_, i) => {
+        const row = defaults[i];
+        const role = row ? row[2] : extraRoles[(i-6) % extraRoles.length];
+        return {
+          id: row ? row[0] : `specialist-${i+1}`,
+          name: row ? row[1] : extraNames[(i-6) % extraNames.length],
+          role,
+          title: ROLES[role].title,
+          status: row ? row[3] : (i % 3 === 0 ? "working" : "queued"),
+          progress: row ? row[4] : (i % 3 === 0 ? 30 : 0),
+          task: row ? row[5] : "Ready for the project manager's next assignment.",
+          managerId: i === 0 ? "boss" : "pm",
+          accent: ROLES[role].accent
+        };
+      })
+    };
+  }
+
+  function calculateLayout(agents) {
+    const wingCount = Math.ceil(agents.length / 2);
+    const columns = Math.max(1, Math.ceil(wingCount / SETTINGS.maxRowsPerWing));
+    const rows = Math.max(1, Math.ceil(wingCount / columns));
+    const centerX = 3.2 + columns * SETTINGS.columnSpacing + 1.9;
+    const rightX = centerX + 4.8;
+    const width = rightX + columns * SETTINGS.columnSpacing + 2.2;
+    const depth = Math.max(18, 8.6 + rows * SETTINGS.rowSpacing);
+    const boss = { x: centerX - 1.7, y: 5.5 + (rows-1) * SETTINGS.rowSpacing / 2 };
+    const positions = new Map();
+
+    agents.forEach((agent, index) => {
+      const right = index >= wingCount;
+      const local = right ? index-wingCount : index;
+      positions.set(agent.id, {
+        x: (right ? rightX : 3.2) + Math.floor(local / rows) * SETTINGS.columnSpacing,
+        y: 5.5 + (local % rows) * SETTINGS.rowSpacing,
+        wing: right ? "Right wing" : "Left wing"
+      });
+    });
+
+    return { columns, rows, centerX, rightX, width, depth, boss, positions };
+  }
+
+  function defs() {
+    const d = s("defs", {}, svg);
+    const glow = s("filter", { id: "glow", x: "-70%", y: "-70%", width: "240%", height: "240%" }, d);
+    s("feGaussianBlur", { stdDeviation: 2.5, result: "blur" }, glow);
+    const merge = s("feMerge", {}, glow);
+    s("feMergeNode", { in: "blur" }, merge);
+    s("feMergeNode", { in: "SourceGraphic" }, merge);
+
+    const shadow = s("filter", { id: "groundShadow", x: "-30%", y: "-50%", width: "160%", height: "200%" }, d);
+    s("feGaussianBlur", { stdDeviation: 15 }, shadow);
+
+    const carpet = s("pattern", { id: "carpet", width: 5, height: 5, patternUnits: "userSpaceOnUse" }, d);
+    rect(carpet, 0, 0, 5, 5, "#303947");
+    rect(carpet, 1, 1, 1, 1, "#3a4553");
+    rect(carpet, 3, 3, 1, 1, "#26313e");
+  }
+
+  function drawFloor(g) {
+    const W = layout.width, D = layout.depth;
+    plane(g, -.4, -.4, W+.8, D+.8, -.95, "#000", { opacity: .45, filter: "url(#groundShadow)" });
+    box(g, -.16, -.16, W+.32, D+.32, .65, -.65, ["#8a6a4d","#242d3b","#1a2431"]);
+
+    const wood = ["#a17d59","#997451","#a7825d","#96714f","#a5805a","#9e7855"];
+    for (let row = 0, y = 0; y < D; row++, y += .62) {
+      const offset = row % 2 ? 1.6 : 0;
+      for (let x = -offset, col = 0; x < W; x += 3.2, col++) {
+        const start = Math.max(0,x);
+        const end = Math.min(W,x+3.2);
+        if (end <= start) continue;
+        plane(g, start, y, end-start, Math.min(.62,D-y), .005,
+          wood[(row*7+col*3) % wood.length],
+          { stroke: "#654c36", "stroke-width": .45 });
+        if (end-start > .9) {
+          line(g, p(start+.18,y+.2,.01), p(end-.2,y+.2,.01), "#c59d70", .45, { opacity: .36 });
+          line(g, p(start+.35,y+.43,.01), p(end-.3,y+.43,.01), "#6e523a", .45, { opacity: .3 });
+        }
+      }
+    }
+
+    const rugWidth = layout.columns * SETTINGS.columnSpacing - .6;
+    const rugDepth = layout.rows * SETTINGS.rowSpacing - .25;
+    for (const x of [2.7,layout.rightX-.5]) {
+      plane(g, x, 5.03, rugWidth, rugDepth, .025, "url(#carpet)", { stroke: "#58606a", "stroke-width": .6 });
+      plane(g, x+.16, 5.19, rugWidth-.32, rugDepth-.32, .03, "none", { stroke: "#73808a", "stroke-width": .45, opacity: .35 });
+    }
+
+    const b = layout.boss;
+    plane(g, b.x-.6,b.y-.5,5.8,4.2,.035,"#243748",{stroke:"#4d6b80","stroke-width":.7});
+    plane(g, b.x-.38,b.y-.28,5.36,3.76,.04,"none",{stroke:"#37bfff","stroke-width":.65,opacity:.4});
+
+    for (const x of [layout.centerX-1.2,layout.centerX+2.6]) {
+      for (let y = 2.5; y < D-1; y += 2) {
+        if (y > b.y-1 && y < b.y+4) continue;
+        plane(g,x,y,.08,.5,.04,"#f4d3a3",{opacity:.4});
+      }
+    }
+
+    line(g,p(0,D,-.25),p(W,D,-.25),"#45566a",1.5);
+    line(g,p(W,0,-.25),p(W,D,-.25),"#394b60",1.5);
+    for (let x = 1; x < W; x += 3.5)
+      line(g,p(x,D,-.3),p(x+.7,D,-.3),"#37bfff",1.4,{opacity:.5});
+
+    box(g,layout.centerX-.5,D,3.6,.55,.22,-.65,["#526071","#242f40","#354253"]);
+    box(g,layout.centerX-.5,D+.55,3.6,.5,.12,-.65,["#3a495c","#202a37","#2a3646"]);
+
+    const entrance = floorSurface(g,layout.centerX-.1,D-1.2);
+    text(entrance,0,0,"ASELDEV / HQ",9,"#dac5ab",{"letter-spacing":2});
+  }
+
+  function drawWalls(g) {
+    const W=layout.width, D=layout.depth, H=SETTINGS.wallHeight;
+
+    polygon(g,[p(0,0),p(W,0),p(W,0,H),p(0,0,H)],"#171c26");
+    for(let x=0;x<W;x+=1.65) {
+      line(g,p(x,0,.1),p(x,0,H-.1),"#303947",.8);
+      if (x+1.4<W) plane(g,x,0,1.4,.08,H-.2,"#394655");
+    }
+    line(g,p(0,0,H),p(W,0,H),"#566477",3);
+    line(g,p(0,0,.15),p(W,0,.15),"#303f51",4);
+
+    polygon(g,[p(0,0),p(0,D),p(0,D,H),p(0,0,H)],"#142333");
+    for(let y=.35,index=0;y<D-.35;y+=2.8,index++) {
+      const span=Math.min(2.55,D-y-.25);
+      polygon(g,[p(0,y,.55),p(0,y+span,.55),p(0,y+span,H-.35),p(0,y,H-.35)],"#1f3548");
+      const pane = wallSurface(g,0,y+span,H-.55,true);
+      const width=span*U;
+
+      rect(pane,2,0,width-4,127,"#223b51");
+      rect(pane,2,0,width-4,65,"#294b63",{opacity:.48});
+
+      for(let k=0;k<4;k++) {
+        const bh=23+((index*11+k*17)%39);
+        rect(pane,4+k*(width-9)/4,128-bh,(width-12)/4,bh,"#162b3d",{opacity:.85});
+        for(let r=0;r<3;r++)
+          rect(pane,7+k*(width-9)/4,133-bh+r*9,2,3,k%2 ? "#6a889c" : "#c1ae87",{opacity:.45});
+      }
+
+      polygon(pane,[{x:3,y:4},{x:12,y:4},{x:width-5,y:93},{x:width-5,y:116}],"#a4d9f3",{opacity:.06});
+      line(g,p(0,y,.5),p(0,y,H-.3),"#63788d",1.7);
+      line(g,p(0,y+span,.5),p(0,y+span,H-.3),"#3d5369",2);
+      line(g,p(0,y,2.6),p(0,y+span,2.6),"#3d5369",1);
+      line(g,p(0,y,.5),p(0,y+span,.5),"#738697",2);
+
+      if(index%2===0) {
+        polygon(g,[p(.1,y,.03),p(4,y+1,.03),p(4,y+2,.03),p(.1,y+span,.03)],"#97c9e7",{opacity:.055});
+      }
+    }
+
+    line(g,p(0,0,H),p(0,D,H),"#5b6e80",3);
+    line(g,p(0,0,H-.24),p(0,D,H-.24),"#ffcb85",1.4,{opacity:.7});
+    line(g,p(0,0,.1),p(0,D,.1),"#35495e",4);
+
+    for(let x=1;x<W-1;x+=5) {
+      line(g,p(x,.04,H-.55),p(x+1.8,.04,H-.55),"#ffdcaa",3,{filter:"url(#glow)",opacity:.65});
+      polygon(g,[p(x,0,H-.65),p(x+1.8,0,H-.65),p(x+2.2,0,2.8),p(x-.4,0,2.8)],"#ffcb85",{opacity:.025});
+    }
+  }
+
+  const GLYPHS = {
+    A:["01110","11011","11011","11111","11011","11011","11011"],
+    S:["01111","11000","11000","01110","00011","00011","11110"],
+    E:["11111","11000","11000","11110","11000","11000","11111"],
+    L:["11000","11000","11000","11000","11000","11000","11111"],
+    D:["11110","11011","11011","11011","11011","11011","11110"],
+    V:["11011","11011","11011","11011","11011","01110","00100"],
+    I:["11111","00100","00100","00100","00100","00100","11111"],
+    H:["11011","11011","11011","11111","11011","11011","11011"],
+    Q:["01110","11011","11011","11011","11111","01110","00011"],
+    " ":["00000","00000","00000","00000","00000","00000","00000"]
+  };
+
+  function pixelText(g,value,x,y,size,color) {
+    const group=s("g",{"shape-rendering":"crispEdges"},g);
+    [...value].forEach((char,i)=>{
+      (GLYPHS[char]||GLYPHS[" "]).forEach((row,r)=>{
+        [...row].forEach((bit,c)=>{
+          if(bit==="1")rect(group,x+(i*6+c)*size,y+r*size,size,size,color);
+        });
+      });
+    });
+  }
+
+  function drawBrand(g) {
+    const sign=wallSurface(g,layout.centerX-4.4,.04,6.12);
+    rect(sign,0,0,232,63,"#101924",{stroke:"#324d63","stroke-width":1});
+    rect(sign,0,62,232,2,"#37bfff",{opacity:.55});
+    const logo=s("g",{filter:"url(#glow)"},sign);
+    polygon(logo,[{x:16,y:43},{x:30,y:12},{x:39,y:12},{x:52,y:43},{x:43,y:43},{x:34,y:23},{x:25,y:43}],"#37bfff");
+    rect(logo,27,34,17,5,"#9dddff");
+    pixelText(sign,"ASELDEV",66,13,3,"#73d0ff");
+    pixelText(sign,"AI HQ",67,43,1.4,"#c7dfec");
+
+    const dashboards=wallSurface(g,layout.centerX-4.4,.06,3.05);
+    for(let i=0;i<2;i++)rect(dashboards,i*121,0,111,47,"#0b141f",{stroke:"#3a4d62","stroke-width":1});
+    text(dashboards,8,11,"PROJECT / "+average()+"%",6.5,"#a6bdcf");
+    for(let i=0;i<3;i++){
+      rect(dashboards,8,17+i*8,94,3,"#263546");
+      rect(dashboards,8,17+i*8,94*Math.min(1,(average()+i*8)/100),3,i===0?"#37bfff":"#527d99");
+    }
+    text(dashboards,129,11,"AGENT ACTIVITY",6.5,"#a6bdcf");
+    state.agents.slice(0,12).forEach((a,i)=>{
+      rect(dashboards,129+(i%6)*14,19+Math.floor(i/6)*9,8,4,STATUS[a.status].color);
+    });
+    text(dashboards,129,42,`${state.agents.length} AGENTS / ${source==="demo"?"DEMO":"SNAPSHOT"}`,5.7,"#859bb0");
+  }
+
+  function chair(g,x,y,color="#344252") {
+    box(g,x+.28,y+.28,.12,.12,.55,0,["#68788b","#242e3c","#334053"]);
+    box(g,x+.04,y+.04,.64,.64,.12,.52,[color,"#1d2836","#263647"]);
+    box(g,x+.02,y+.6,.69,.11,.72,.63,[color,"#263647","#465469"]);
+    line(g,p(x-.07,y+.35,.06),p(x+.8,y+.35,.06),"#263343",2);
+    line(g,p(x+.35,y-.07,.06),p(x+.35,y+.8,.06),"#263343",2);
+  }
+
+  function plant(g,x,y,size=1) {
+    box(g,x,y,.65*size,.65*size,.56*size,0,["#b4a18a","#6e6255","#897968"]);
+    box(g,x+.06*size,y+.06*size,.53*size,.53*size,.05,.56*size,["#3b3a2b","#3b3a2b","#3b3a2b"]);
+    const q=p(x+.32*size,y+.32*size,.6*size);
+    const leaves=s("g",{transform:`translate(${q.x} ${q.y}) scale(${size})`,class:"sprite-pixels"},g);
+    rect(leaves,-1,-24,2,26,"#6a8057");
+    for(const [lx,ly,w,h,c] of [
+      [-11,-29,8,5,"#658f6c"],[-7,-25,7,6,"#7aa582"],
+      [2,-36,7,7,"#759e77"],[0,-29,5,10,"#608f67"],
+      [4,-20,11,5,"#7fa481"],[3,-15,7,6,"#567d5e"],
+      [-13,-17,9,5,"#517f5b"],[-6,-13,6,8,"#709b75"],
+      [-3,-40,6,9,"#8aad84"]
+    ])rect(leaves,lx,ly,w,h,c);
+  }
+
+  function screen(g,x,y,z,kind,accent,status,width=47,height=30) {
+    const q=p(x,y,z);
+    const group=s("g",{transform:`matrix(${COS} .5 0 1 ${q.x} ${q.y})`},g);
+    rect(group,width*.46,height,4,7,"#506075");
+    rect(group,width*.29,height+6,width*.42,2,"#26384a");
+    rect(group,-2,-2,width+4,height+4,"#151d28",{stroke:"#506176","stroke-width":.7});
+    rect(group,0,0,width,height,"#0c1926");
+    rect(group,0,0,width,4,"#22374b");
+    for(let i=0;i<3;i++)rect(group,3+i*4,1.2,1.5,1.5,i===0?accent:"#688197");
+    const content=s("g",{opacity:status==="offline"?.18:1},group);
+
+    if(kind==="kanban") {
+      for(let col=0;col<3;col++){
+        rect(content,3+col*(width-6)/3,7,(width-10)/3,2,accent,{opacity:.7});
+        for(let row=0;row<(col===1?3:2);row++)
+          rect(content,3+col*(width-6)/3,12+row*5,(width-10)/3,3,row===0?accent:"#35506a",{opacity:.75});
+      }
+    } else if(kind==="terminal") {
+      const lengths=[.68,.43,.77,.54,.32];
+      lengths.forEach((length,i)=>{
+        rect(content,4,8+i*4,2,1.2,"#d9bb86");
+        rect(content,8,8+i*4,(width-12)*length,1.2,accent,{opacity:i%2?.5:.9});
+      });
+      rect(content,8,26,3,1.5,accent,{class:status==="working"?"signal":""});
+    } else if(kind==="design") {
+      rect(content,3,7,width*.57,height-10,"#c2c8d1");
+      rect(content,6,10,width*.43,5,"#6f80b3");
+      rect(content,6,18,width*.19,7,"#8baaaa");
+      rect(content,8+width*.2,18,width*.19,7,"#a58d9c");
+      ["#c3a5df","#ffcb85","#83c7b3","#94baff"].forEach((color,i)=>rect(content,width-11,8+i*5,7,3,color));
+    } else if(kind==="web") {
+      rect(content,3,7,width-6,height-10,"#afbdc9");
+      rect(content,3,7,width-6,4,"#344e69");
+      rect(content,6,14,width*.47,5,"#678daf");
+      rect(content,width*.65,14,width*.2,10,"#6e9b9e");
+      for(let i=0;i<3;i++)rect(content,6,22+i*2,width*.44,1,"#637588");
+    } else if(kind==="tests") {
+      for(let i=0;i<4;i++){
+        rect(content,4,8+i*5,3,3,i===3?"#dfbd82":"#8fc5a1");
+        rect(content,11,9+i*5,width-16-(i%2)*7,1.4,"#698499");
+      }
+    } else {
+      for(let i=0;i<7;i++){
+        const heightBar=5+(i*7%15);
+        rect(content,4+i*(width-7)/7,height-3-heightBar,3,heightBar,accent,{opacity:.5+i*.06});
+      }
+      line(content,{x:3,y:9},{x:width-4,y:9},"#35526a",.7);
+    }
+
+    rect(group,width-3,height-1,1.5,1,STATUS[status]?.color||accent);
+  }
+
+  function character(g,x,y,scale,agent,human=false) {
+    const root=s("g",{transform:`translate(${x} ${y}) scale(${scale})`},g);
+    const sprite=s("g",{class:"sprite-pixels"},root);
+    const suit=human?"#3d4e65":meta(agent).suit;
+    const accent=human?"#ffcb85":agent.accent;
+    const R=(a,b,c,d,color,extra={})=>rect(sprite,a,b,c,d,color,extra);
+
+    R(-5,-3,4,3,"#101824"); R(2,-3,4,3,"#101824");
+    R(-4,-8,3,5,"#243343"); R(2,-8,3,5,"#243343");
+    R(-5,-15,11,8,suit);
+    R(-3,-15,7,1,"#7c8b9c");
+    R(-4,-9,9,1,"#273949");
+
+    if(human) {
+      R(-4,-25,9,9,"#d6aa87");
+      R(-5,-26,10,4,"#302b29");
+      R(-5,-23,2,4,"#302b29");
+      R(-2,-22,2,1,"#241f22"); R(2,-22,2,1,"#241f22");
+      R(-1,-18,3,1,"#ac775d");
+      R(0,-14,2,5,"#ffcb85");
+      R(-4,-13,2,3,"#627189");
+    } else {
+      R(-1,-29,2,4,"#64798d");
+      R(-2,-30,4,2,accent,{class:agent.status==="working"?"signal":""});
+      R(-6,-25,13,10,"#728394");
+      R(-5,-24,11,8,"#1a2b3b");
+      R(-6,-24,1,7,"#a7b8c6");
+      R(-4,-23,9,1,"#36536a");
+      const eyes=s("g",{class:"eyes blink",style:`animation-delay:-${agent.name.length%5}s`},sprite);
+      rect(eyes,-3,-21,2,2,accent);
+      rect(eyes,2,-21,2,2,accent);
+      if(agent.status==="blocked") {
+        rect(eyes,-3,-22,2,1,"#f2929c");
+        rect(eyes,2,-22,2,1,"#f2929c");
+      }
+      R(-1,-18,3,1,agent.status==="review"?"#ffcb85":"#87a3b8");
+      R(-1,-13,3,3,accent);
+      R(-1,-12,1,1,"#e7f2ff");
+
+      if(agent.role==="devops"){
+        R(-8,-23,2,7,"#202c3d"); R(7,-23,2,7,"#202c3d");
+        R(-6,-27,13,2,"#4f657b");
+      }
+      if(agent.role==="backend") {
+        R(-7,-25,2,9,suit); R(7,-25,2,9,suit);
+      }
+      if(agent.role==="design") {
+        R(-6,-27,13,2,"#9f82b1"); R(3,-28,5,1,"#b69bc6");
+      }
+      if(agent.role==="qa") {
+        R(-5,-22,10,1,"#dac18e");
+      }
+    }
+
+    const hands=s("g",{class:!human&&agent.status==="working"?"typing":""},sprite);
+    rect(hands,-7,-14,2,7,suit);
+    rect(hands,6,-14,2,7,suit);
+    rect(hands,-7,-8,3,2,human?"#d6aa87":"#94a5b4");
+    rect(hands,5,-8,3,2,human?"#d6aa87":"#94a5b4");
+
+    return root;
+  }
+
+  function keyboard(g,x,y,z,w=1.2) {
+    plane(g,x,y,w,.38,z,"#667181");
+    for(let row=0;row<3;row++)
+      for(let col=0;col<8;col++)
+        plane(g,x+.06+col*(w-.12)/8,y+.035+row*.105,(w-.18)/9,.055,z+.01,"#b2bdc8",{opacity:.6});
+  }
+
+  function mug(g,x,y,z,color="#c7b49b") {
+    box(g,x,y,.22,.22,.3,z,[color,"#8c8276","#a59a8b"]);
+    plane(g,x+.035,y+.035,.15,.15,z+.305,"#493a2d");
+    const q=p(x+.24,y+.12,z+.13);
+    rect(g,q.x,q.y-2,3,4,"none",{stroke:color,"stroke-width":1.3});
+  }
+
+  function station(g,agent,pos,human=false) {
+    const {x,y}=pos;
+    const width=human?4.6:3.55;
+    const depth=human?1.85:1.6;
+    const accent=human?"#37bfff":agent.accent;
+    const id=human?"boss":agent.id;
+    const node=s("g",{
+      class:"station"+(selectedId===id?" selected":""),
+      "data-agent":id,
+      "data-status":human?"owner":agent.status,
+      "data-focus-key":`station-${id}`,
+      tabindex:0,
+      role:"button",
+      "aria-pressed":selectedId===id,
+      "aria-label":human
+        ? `${state.boss.name}, human owner, command desk`
+        : `${agent.name}, ${agent.title}, ${STATUS[agent.status].label}, ${agent.progress} percent`
+    },g);
+    s("title",{},node,human?"Your command desk":`${agent.name} · ${agent.title}\n${agent.task}`);
+
+    plane(node,x-.35,y-.25,width+.7,3.55,.07,"#37bfff",{
+      class:"selection", "fill-opacity":.07, stroke:"#64ceff","stroke-width":1.5
+    });
+    plane(node,x+.1,y+.15,width+.15,2.6,.07,"#0a1422",{opacity:.18});
+
+    const equipment=s("g",{class:"equipment"},node);
+
+    for(const dx of [.15,width-.28])
+      for(const dy of [.13,depth-.25])
+        box(equipment,x+dx,y+dy,.13,.13,1.32,0,["#465264","#152131","#202d40"]);
+
+    box(equipment,x+.1,y+depth-.24,width-.2,.12,.75,.5,["#273849","#192635","#243447"]);
+    box(equipment,x,y,width,depth,.14,1.32,["#323e4d","#151e2c","#202d3c"]);
+    line(equipment,p(x,y+depth,1.37),p(x+width,y+depth,1.37),accent,human?2:1.15,{opacity:human?.9:.55});
+
+    if(human) {
+      screen(equipment,x+.15,y+.25,2.8,"kanban","#6cc7f3","working",32,25);
+      screen(equipment,x+1.55,y+.25,2.95,"charts","#7fcab8","working",36,28);
+      screen(equipment,x+3.12,y+.25,2.8,"terminal","#83c7b3","working",31,25);
+      keyboard(equipment,x+1.65,y+1.2,1.48,1.4);
+      mug(equipment,x+.38,y+1.17,1.47,"#ffcb85");
+      const deskLogo=wallSurface(equipment,x+1.65,y+depth+.01,1.16);
+      pixelText(deskLogo,"A",0,0,1.4,"#37bfff");
+      text(deskLogo,13,8,"ASELDEV",5.5,"#78aecb");
+    } else {
+      screen(equipment,x+.4,y+.3,2.75,meta(agent).screen,accent,agent.status);
+      keyboard(equipment,x+1.05,y+1.11,1.48);
+      plane(equipment,x+2.43,y+1.12,.33,.28,1.48,"#667789");
+      mug(equipment,x+2.94,y+.9,1.48,accent);
+
+      if(agent.role==="pm") {
+        plane(equipment,x+.15,y+.94,.55,.47,1.49,"#d1be92");
+        for(let i=0;i<3;i++)plane(equipment,x+.23,y+1.02+i*.1,.31,.025,1.5,"#7f847d");
+      } else if(agent.role==="design") {
+        plane(equipment,x+.09,y+.95,.65,.5,1.49,"#172535");
+        for(let i=0;i<3;i++)plane(equipment,x+.16+i*.17,y+1.1,.1,.15,1.5,["#c3a5df","#ffcb85","#83c7b3"][i]);
+      } else if(agent.role==="backend"||agent.role==="devops") {
+        box(equipment,x+width-.5,y+.15,.38,.48,.9,.1,["#33465a","#172636","#24384c"]);
+      }
+    }
+
+    const cx=x+width*.58, cy=y+2.08;
+    chair(equipment,cx-.33,cy-.28,human?"#52657c":"#394a5b");
+    const q=p(cx,cy+.1,.43);
+    character(equipment,q.x,q.y,1.45,human?null:agent,human);
+
+    const labelPoint=p(x+width/2,y+3.05,.03);
+    const labels=s("g",{"data-label":"true",display:showLabels?"inline":"none"},node);
+    const labelWidth=human?138:130;
+    rect(labels,labelPoint.x-labelWidth/2,labelPoint.y-4,labelWidth,29,"#101b28",{
+      class:"nameplate",rx:4,stroke:human?"#4e91b6":"#4a5c70","stroke-width":.7
+    });
+    rect(labels,labelPoint.x-labelWidth/2+8,labelPoint.y+4,4,4,human?"#ffcb85":STATUS[agent.status].color);
+    text(labels,labelPoint.x-labelWidth/2+19,labelPoint.y+8,
+      human?short(state.boss.name.toUpperCase(),18):short(agent.name,18),9.5,"#e1edf8");
+    text(labels,labelPoint.x-labelWidth/2+8,labelPoint.y+19,
+      human?"HUMAN / COMMAND":short(agent.title,23),6.8,"#a1b4c9");
+    if(!human)
+      rect(labels,labelPoint.x-labelWidth/2+1,labelPoint.y+24,(labelWidth-2)*agent.progress/100,1.3,STATUS[agent.status].color);
+
+    return node;
+  }
+
+  function drawMeeting(g) {
+    const x=2.4,y=1.5;
+    plane(g,x-.75,y-.55,5,3.5,.02,"#41454a",{opacity:.7});
+    chair(g,x+.15,y-.55);
+    chair(g,x+1.7,y-.55);
+    box(g,x+.2,y+.2,.12,.12,1.1,0);
+    box(g,x+2.7,y+1.3,.12,.12,1.1,0);
+    box(g,x,y,3,1.75,.14,1.1,["#bb9369","#8c694a","#a47d55"]);
+    plane(g,x+.2,y+.2,2.6,1.35,1.25,"none",{stroke:"#d2ab7b","stroke-width":.6});
+    screen(g,x+1.2,y+.6,1.85,"kanban","#8ab9d8","working",24,15);
+    mug(g,x+.4,y+1.1,1.25);
+    plane(g,x+2.2,y+.8,.45,.6,1.26,"#c2c9ca");
+    chair(g,x+.15,y+2.0);
+    chair(g,x+1.7,y+2.0);
+    plant(g,x+3.6,y+.45,.9);
+
+    const board=wallSurface(g,.03,4.8,4.9,true);
+    rect(board,0,0,72,46,"#18293a",{stroke:"#5f778d","stroke-width":1.5});
+    text(board,6,9,"SPRINT PLANNING",5.7,"#c1d6e5");
+    for(let col=0;col<3;col++){
+      rect(board,6+col*22,14,17,2,"#5f809b");
+      for(let row=0;row<3;row++)
+        rect(board,6+col*22,20+row*7,15,4,["#7ca9c6","#c4af83","#89a893"][col],{opacity:.8});
+    }
+  }
+
+  function drawServers(g) {
+    const x=layout.width-6.1,y=1.05;
+    plane(g,x-.4,y-.25,4.9,2.7,.03,"#25313e",{stroke:"#415364","stroke-width":.5});
+    for(let i=0;i<3;i++) {
+      const rx=x+i*1.35;
+      box(g,rx,y,1.07,1.35,3.6,0,["#435163","#172331","#293a4b"]);
+      const face=wallSurface(g,rx+.08,y+1.355,3.36);
+      rect(face,0,0,21,73,"#0c1825",{stroke:"#4e6277","stroke-width":.65});
+      for(let rack=0;rack<7;rack++){
+        rect(face,2,4+rack*9,17,6,"#26394c");
+        rect(face,3,6+rack*9,2,1.5,rack%4===0?"#8fc5a1":"#37bfff",{
+          class:"signal",style:`animation-delay:-${(i+rack)*.3}s`
+        });
+        for(let vent=0;vent<4;vent++)rect(face,8+vent*2.4,6+rack*9,1,2,"#101e2d");
+      }
+      text(face,3,70,`0${i+1}`,5,"#8ca5bb");
+    }
+    const label=wallSurface(g,x,.02,4.5);
+    text(label,0,0,"INFRASTRUCTURE",9,"#a2b5c7",{"letter-spacing":1});
+    line(g,p(x,y+1.75,.05),p(x+3.85,y+1.75,.05),"#37bfff",1,{opacity:.4});
+  }
+
+  function drawLounge(g) {
+    const x=2.6,y=layout.depth-3.55;
+    plane(g,x-.55,y-.5,5.8,3.3,.02,"#6c665e",{opacity:.6});
+    box(g,x,y,4.1,1.3,.55,.12,["#45515e","#2d3947","#374351"]);
+    box(g,x,y,4.1,.24,.9,.62,["#536171","#374554","#425162"]);
+    box(g,x,y,.28,1.3,.75,.45,["#526071","#334150","#435161"]);
+    box(g,x+3.82,y,.28,1.3,.75,.45,["#526071","#334150","#435161"]);
+    for(let i=0;i<3;i++)box(g,x+.38+i*1.13,y+.32,1.04,.82,.13,.65,["#637080","#455260","#536171"]);
+    box(g,x+.55,y+.2,.62,.27,.48,.83,["#b3a58f","#938673","#a99b83"]);
+    box(g,x+2.7,y+.2,.62,.27,.48,.83,["#65818a","#435e6a","#54717e"]);
+    box(g,x+1.05,y+1.8,1.8,.9,.12,.5,["#b28b61","#806245","#96734f"]);
+    box(g,x+1.35,y+2,.15,.4,.5,0);
+    box(g,x+2.35,y+2,.15,.4,.5,0);
+    mug(g,x+1.3,y+2.1,.63,"#d7b58c");
+    plane(g,x+2,y+1.98,.55,.4,.63,"#627c8e");
+    plant(g,x+4.6,y+.75,1.1);
+
+    const lamp=p(x-.25,y+1.5);
+    line(g,lamp,p(x-.25,y+1.5,3.4),"#596372",2);
+    plane(g,x-.5,y+1.25,.5,.5,.05,"#35404d");
+    box(g,x-.65,y+1.1,.8,.8,.45,3.2,["#e4c49a","#a59178","#c9ad88"]);
+    const warm=p(x-.25,y+1.5,3.2);
+    s("ellipse",{cx:warm.x,cy:warm.y+12,rx:18,ry:8,fill:"#ffcb85",opacity:.08,filter:"url(#glow)"},g);
+  }
+
+  function drawCoffee(g) {
+    const x=layout.width-5.1,y=layout.depth-3.3;
+    box(g,x,y,2.8,1.05,1.25,0,["#48515d","#283442","#364452"]);
+    box(g,x-.06,y-.04,2.92,1.13,.12,1.25,["#b69775","#85694e","#a1815e"]);
+    for(let i=0;i<3;i++){
+      line(g,p(x+.9*i,y+1.055,.15),p(x+.9*i,y+1.055,1.16),"#4b5a6c",.7);
+      line(g,p(x+.2+.9*i,y+1.07,1),p(x+.5+.9*i,y+1.07,1),"#a3a9ad",1.2);
+    }
+    box(g,x+.3,y+.2,.75,.62,.8,1.37,["#5b6674","#1b2b3b","#3f4d5e"]);
+    const face=wallSurface(g,x+.37,y+.83,2.03);
+    rect(face,0,0,13,10,"#101e2a");
+    rect(face,3,2,7,2,"#70b6cb");
+    rect(face,4,9,5,7,"#10171f");
+    mug(g,x+.5,y+.82,1.38,"#d6c4ad");
+    mug(g,x+1.5,y+.5,1.38,"#c2cdd5");
+    mug(g,x+1.9,y+.5,1.38,"#95a7b8");
+    plant(g,x+3.3,y+.15,.9);
+  }
+
+  function drawConnections(g) {
+    if(!showLinks)return;
+    const positions=new Map(layout.positions);
+    positions.set("boss",layout.boss);
+
+    for(const agent of state.agents) {
+      const target=positions.get(agent.id);
+      const manager=positions.get(agent.managerId);
+      const from=p(manager.x+(agent.managerId==="boss"?2.3:1.8),manager.y+2.65,.1);
+      const to=p(target.x+1.8,target.y+2.65,.1);
+      const middle={x:(from.x+to.x)/2,y:(from.y+to.y)/2+20};
+
+      s("path",{
+        d:`M ${from.x} ${from.y} Q ${middle.x} ${middle.y} ${to.x} ${to.y}`,
+        fill:"none",stroke:agent.managerId==="boss"?"#ffcb85":"#8ac5e9",
+        "stroke-width":1.2,opacity:.55,class:"route","pointer-events":"none"
+      },g);
+    }
+  }
+
+  function applyCamera() {
+    if(!camera)return;
+    camera.setAttribute("transform",`translate(${720+pan.x} ${405+pan.y}) scale(${zoom}) translate(-720 -405)`);
+    $("zoom").value=String(Math.round(zoom*100));
+    $("zoomValue").value=`${Math.round(zoom*100)}%`;
+  }
+
+  function renderScene() {
+    svg.replaceChildren();
+    s("title",{},svg,"ASELDEV AI headquarters");
+    s("desc",{},svg,`${state.agents.length} AI teammates report through their managers to ${state.boss.name}, the human owner.`);
+    defs();
+
+    camera=s("g",{},svg);
+    const worldW=(layout.width+layout.depth)*U*COS;
+    const worldH=(layout.width+layout.depth)*U*.5+SETTINGS.wallHeight*U+34;
+    const scale=Math.min(1290/worldW,720/worldH);
+    const ox=(1440-worldW*scale)/2+layout.depth*U*COS*scale;
+    const oy=(810-worldH*scale)/2+SETTINGS.wallHeight*U*scale;
+    const world=s("g",{transform:`translate(${ox} ${oy}) scale(${scale})`},camera);
+
+    drawFloor(world);
+    drawWalls(world);
+    drawBrand(world);
+    drawConnections(world);
+
+    const objects=[
+      {depth:7,draw:()=>drawMeeting(world)},
+      {depth:layout.width-2,draw:()=>drawServers(world)},
+      {depth:layout.depth+4,draw:()=>drawLounge(world)},
+      {depth:layout.width+layout.depth-5,draw:()=>drawCoffee(world)},
+      {depth:layout.boss.x+layout.boss.y+4,draw:()=>station(world,null,layout.boss,true)}
+    ];
+
+    state.agents.forEach(agent=>{
+      const pos=layout.positions.get(agent.id);
+      objects.push({depth:pos.x+pos.y+3,draw:()=>station(world,agent,pos)});
+    });
+
+    objects.sort((a,b)=>a.depth-b.depth).forEach(object=>object.draw());
+    applyCamera();
+  }
+
+  function renderRoster() {
+    const roster=$("roster");
+    roster.replaceChildren();
+    if(!state.agents.length) {
+      h("div","empty",roster,"Your office is ready. Add an agent or supply a team snapshot to create the first workstation.");
+      return;
+    }
+
+    for(const agent of state.agents) {
+      const button=h("button","agent-card",roster);
+      button.type="button";
+      button.dataset.agent=agent.id;
+      button.dataset.focusKey=`roster-${agent.id}`;
+      button.setAttribute("aria-pressed",String(selectedId===agent.id));
+      button.setAttribute("aria-label",`${agent.name}, ${agent.title}, ${STATUS[agent.status].label}`);
+      const monogram=h("span","agent-monogram",button,meta(agent).short);
+      monogram.style.color=agent.accent;
+      const copy=h("span","agent-copy",button);
+      h("strong","",copy,agent.name);
+      h("small","",copy,agent.title);
+      const dot=h("span","status-dot",button);
+      dot.style.background=STATUS[agent.status].color;
+      dot.title=STATUS[agent.status].label;
+    }
+  }
+
+  function renderInspector() {
+    const isBoss=selectedId==="boss";
+    const agent=state.agents.find(a=>a.id===selectedId);
+    if(!isBoss&&!agent)return;
+
+    const progress=isBoss?average():agent.progress;
+    const statusColor=isBoss?"#ffcb85":STATUS[agent.status].color;
+
+    $("portrait").replaceChildren();
+    character($("portrait"),34,70,2.05,isBoss?null:agent,isBoss);
+    $("personName").textContent=isBoss?state.boss.name:agent.name;
+    $("personRole").textContent=isBoss?state.boss.title:agent.title;
+    $("personStatus").textContent=isBoss?"Human · in command":STATUS[agent.status].label;
+    $("personStatus").style.color=statusColor;
+    $("personStatus").style.borderColor=statusColor+"66";
+    $("personDescription").textContent=isBoss
+      ? "Your project manager organizes the work. Every teammate ultimately reports to you."
+      : `${layout.positions.get(agent.id).wing} · ${meta(agent).title}. ${agent.status==="review"?"This task is waiting for your decision.":"Select any station to follow its current task."}`;
+
+    $("taskLabel").textContent=isBoss?"Your focus":"Current task";
+    $("personTask").textContent=isBoss?state.project.objective:agent.task;
+    $("reportsLabel").textContent=isBoss?"Direct reports":"Reports to";
+    const direct=state.agents.filter(a=>a.managerId==="boss");
+    $("personReports").textContent=isBoss
+      ? (direct.length?direct.map(a=>a.name).join(", "):"No direct reports yet.")
+      : (agent.managerId==="boss"
+        ? `${state.boss.name} · human owner`
+        : state.agents.find(a=>a.id===agent.managerId).name+" · "+state.agents.find(a=>a.id===agent.managerId).title);
+
+    $("progressLabel").textContent=isBoss?"Team task average":"Task progress";
+    $("personProgress").textContent=progress+"%";
+    $("personProgressFill").style.width=progress+"%";
+    $("personProgressFill").style.background=isBoss?"#37bfff":statusColor;
+    $("personProgressBar").setAttribute("aria-valuenow",String(progress));
+
+    const review=!isBoss&&agent.status==="review";
+    $("decisions").hidden=!review;
+    $("approve").disabled=pending.has(selectedId);
+    $("revise").disabled=pending.has(selectedId);
+    $("approve").textContent=pending.has(selectedId)?"Requested":"Approve";
+    $("ownerNote").hidden=!isBoss;
+    $("localControls").hidden=isBoss||source!=="demo";
+
+    if(!isBoss) {
+      $("editStatus").value=agent.status;
+      $("editProgress").value=String(agent.progress);
+      $("editProgress").disabled=agent.status==="done";
+    }
+  }
+
+  function select(id) {
+    if(id!=="boss"&&!state.agents.some(a=>a.id===id))return;
+    selectedId=id;
+    document.querySelectorAll("[data-agent]").forEach(node=>{
+      const active=node.dataset.agent===id;
+      node.setAttribute("aria-pressed",String(active));
+      if(node.classList.contains("station"))node.classList.toggle("selected",active);
+    });
+    renderInspector();
+  }
+
+  function renderAll() {
+    const focusKey=document.activeElement?.dataset?.focusKey;
+    layout=calculateLayout(state.agents);
+    $("projectName").textContent=state.project.name;
+    $("projectObjective").textContent=state.project.objective;
+    $("agentCount").textContent=String(state.agents.length);
+    $("workingCount").textContent=String(state.agents.filter(a=>a.status==="working").length);
+    $("reviewCount").textContent=String(state.agents.filter(a=>a.status==="review").length);
+    $("projectProgress").textContent=average()+"%";
+    $("floorSummary").textContent=`${state.agents.length} station${state.agents.length===1?"":"s"} + your command desk`;
+    $("sourceLabel").textContent=source==="demo"?"Local demo · disconnected":"External snapshot · integration supplied";
+    $("sourceDot").style.background=source==="demo"?"#ffcb85":"#37bfff";
+    $("teamCaption").textContent=source==="demo"
+      ? "The project manager coordinates. You decide."
+      : "Showing supplied data. Decisions are emitted to your integration.";
+    $("addAgent").disabled=source!=="demo"||state.agents.length>=SETTINGS.maxAgents;
+    $("advanceDemo").disabled=source!=="demo"||!state.agents.length;
+
+    renderScene();
+    renderRoster();
+    renderInspector();
+
+    if(focusKey) {
+      const restore=[...document.querySelectorAll("[data-focus-key]")]
+        .find(node=>node.dataset.focusKey===focusKey);
+      if(restore)restore.focus({preventScroll:true});
+    }
+  }
+
+  function commit(raw,nextSource) {
+    const validated=validate(raw);
+    state=validated;
+    source=nextSource;
+    pending.clear();
+    if(selectedId!=="boss"&&!state.agents.some(a=>a.id===selectedId))selectedId="boss";
+    renderAll();
+    window.dispatchEvent(new CustomEvent("hq:statechange",{
+      detail:{source,state:clone(state)}
+    }));
+    return clone(state);
+  }
+
+  function patchLocal(id,patch) {
+    return commit({
+      ...state,
+      agents:state.agents.map(agent=>agent.id===id?{...agent,...patch}:agent)
+    },"demo");
+  }
+
+  function decision(action) {
+    const agent=state.agents.find(a=>a.id===selectedId);
+    if(!agent||agent.status!=="review"||pending.has(agent.id))return;
+    const demoApplied=source==="demo";
+
+    if(demoApplied) {
+      patchLocal(agent.id,action==="approve"
+        ? {status:"done",progress:100}
+        : {status:"working",progress:Math.min(agent.progress,90)});
+    } else {
+      pending.add(agent.id);
+      renderInspector();
+    }
+
+    window.dispatchEvent(new CustomEvent("hq:action",{
+      detail:{action,agentId:agent.id,agent:clone(agent),demoApplied}
+    }));
+
+    notify(demoApplied
+      ? (action==="approve"?"Approved in the local demo.":"Revision requested in the local demo.")
+      : (pending.has(agent.id)?"Request emitted. Waiting for updated team data.":"Updated team data received."));
+  }
+
+  for(const [value,info] of Object.entries(STATUS)) {
+    const option=h("option","",$("editStatus"),info.label);
+    option.value=value;
+  }
+  for(const [value,info] of Object.entries(ROLES)) {
+    const option=h("option","",$("newRole"),info.title);
+    option.value=value;
+  }
+
+  svg.addEventListener("click",event=>{
+    if(suppressClick)return;
+    const stationNode=event.target.closest("[data-agent]");
+    if(stationNode)select(stationNode.dataset.agent);
+  });
+  svg.addEventListener("keydown",event=>{
+    if(event.key!=="Enter"&&event.key!==" ")return;
+    const node=event.target.closest("[data-agent]");
+    if(node){event.preventDefault();select(node.dataset.agent);}
+  });
+  $("roster").addEventListener("click",event=>{
+    const button=event.target.closest("[data-agent]");
+    if(button)select(button.dataset.agent);
+  });
+
+  function pointerPosition(event) {
+    const point=svg.createSVGPoint();
+    point.x=event.clientX;point.y=event.clientY;
+    return point.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  svg.addEventListener("pointerdown",event=>{
+    if(event.button!==0)return;
+    suppressClick=false;
+    const point=pointerPosition(event);
+    drag={
+      pointerId:event.pointerId,
+      start:point,
+      initial:{...pan},
+      moved:false,
+      interactive:!!event.target.closest("[data-agent]")
+    };
+    if(!drag.interactive)svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove",event=>{
+    if(!drag||event.pointerId!==drag.pointerId)return;
+    const point=pointerPosition(event);
+    const dx=point.x-drag.start.x,dy=point.y-drag.start.y;
+    if(Math.hypot(dx,dy)>6) {
+      drag.moved=true;
+      svg.setPointerCapture(event.pointerId);
+      svg.classList.add("dragging");
+    }
+    if(drag.moved) {
+      pan={
+        x:Math.max(-1100,Math.min(1100,drag.initial.x+dx)),
+        y:Math.max(-700,Math.min(700,drag.initial.y+dy))
+      };
+      applyCamera();
+    }
+  });
+  function endDrag(event) {
+    if(!drag||event.pointerId!==drag.pointerId)return;
+    suppressClick=drag.moved;
+    if(svg.hasPointerCapture(event.pointerId))svg.releasePointerCapture(event.pointerId);
+    drag=null;
+    svg.classList.remove("dragging");
+    setTimeout(()=>{suppressClick=false;},0);
+  }
+  svg.addEventListener("pointerup",endDrag);
+  svg.addEventListener("pointercancel",endDrag);
+
+  $("zoom").addEventListener("input",event=>{
+    zoom=Number(event.target.value)/100;
+    applyCamera();
+  });
+  $("fit").addEventListener("click",()=>{
+    zoom=1;pan={x:0,y:0};applyCamera();
+    if(innerWidth<=640)$("viewport").scrollLeft=($("viewport").scrollWidth-$("viewport").clientWidth)/2;
+  });
+  $("labels").addEventListener("click",()=>{
+    showLabels=!showLabels;
+    $("labels").setAttribute("aria-pressed",String(showLabels));
+    svg.querySelectorAll("[data-label]").forEach(node=>node.setAttribute("display",showLabels?"inline":"none"));
+  });
+  $("links").addEventListener("click",()=>{
+    showLinks=!showLinks;
+    $("links").setAttribute("aria-pressed",String(showLinks));
+    renderScene();
+  });
+  $("motion").addEventListener("click",()=>{
+    motion=!motion;
+    document.body.classList.toggle("motion-off",!motion);
+    $("motion").setAttribute("aria-pressed",String(motion));
+  });
+  $("selectBoss").addEventListener("click",()=>select("boss"));
+  $("approve").addEventListener("click",()=>decision("approve"));
+  $("revise").addEventListener("click",()=>decision("revise"));
+
+  $("editStatus").addEventListener("change",event=>{
+    if(source!=="demo"||selectedId==="boss")return;
+    patchLocal(selectedId,{status:event.target.value});
+  });
+  $("editProgress").addEventListener("change",event=>{
+    if(source!=="demo"||selectedId==="boss")return;
+    patchLocal(selectedId,{progress:Number(event.target.value)});
+  });
+  $("removeAgent").addEventListener("click",()=>{
+    if(source!=="demo")return;
+    const agent=state.agents.find(a=>a.id===selectedId);
+    if(!agent)return;
+    const next=state.agents.filter(a=>a.id!==agent.id)
+      .map(a=>a.managerId===agent.id?{...a,managerId:agent.managerId}:a);
+    commit({...state,agents:next},"demo");
+    notify(`${agent.name} removed. Direct reports reassigned to their next manager.`);
+  });
+
+  $("advanceDemo").addEventListener("click",()=>{
+    if(source!=="demo")return;
+    const agents=state.agents.map(a=>{
+      if(a.status==="working") {
+        const progress=Math.min(100,a.progress+12);
+        return {...a,progress,status:progress===100?"review":"working"};
+      }
+      if(a.status==="queued"||a.status==="idle")return {...a,status:"working"};
+      return a;
+    });
+    commit({...state,agents},"demo");
+    notify("Demo advanced. Review tasks still wait for your decision.");
+  });
+
+  $("addAgent").addEventListener("click",()=>{
+    if(source!=="demo"||state.agents.length>=SETTINGS.maxAgents)return;
+    $("addForm").reset();
+    $("addError").textContent="";
+    $("newManager").replaceChildren();
+    const bossOption=h("option","",$("newManager"),`${state.boss.name} · human owner`);
+    bossOption.value="boss";
+    for(const agent of state.agents) {
+      const option=h("option","",$("newManager"),`${agent.name} · ${agent.title}`);
+      option.value=agent.id;
+    }
+    $("newManager").value=state.agents.find(a=>a.role==="pm")?.id||"boss";
+    $("addDialog").showModal();
+    $("newName").focus();
+  });
+
+  $("addForm").addEventListener("submit",event=>{
+    event.preventDefault();
+    if(source!=="demo")return;
+    try {
+      let id;
+      do{id=`agent-${++serial}`;}while(state.agents.some(a=>a.id===id));
+      const role=$("newRole").value;
+      const agent={
+        id,name:$("newName").value.trim(),role,
+        title:ROLES[role].title,
+        task:$("newTask").value.trim()||"Waiting for an assignment.",
+        status:"queued",progress:0,accent:ROLES[role].accent,
+        managerId:$("newManager").value
+      };
+      commit({...state,agents:[...state.agents,agent]},"demo");
+      select(id);
+      $("addDialog").close();
+      notify(`${agent.name} has a desk. The floor has been updated.`);
+    } catch(error) {
+      $("addError").textContent=error.message;
+    }
+  });
+
+  $("configure").addEventListener("click",()=>{
+    $("teamJSON").value=JSON.stringify(state,null,2);
+    $("configError").textContent="";
+    $("configDialog").showModal();
+  });
+  document.querySelectorAll("[data-sample]").forEach(button=>{
+    button.addEventListener("click",()=>{
+      $("teamJSON").value=JSON.stringify(sample(Number(button.dataset.sample)),null,2);
+      $("configError").textContent="";
+    });
+  });
+  $("applyJSON").addEventListener("click",()=>{
+    try {
+      const next=JSON.parse($("teamJSON").value);
+      commit(next,"demo");
+      zoom=1;pan={x:0,y:0};applyCamera();
+      $("configDialog").close();
+      notify("Team configuration applied.");
+    } catch(error) {
+      $("configError").textContent=error.message;
+    }
+  });
+  $("copyJSON").addEventListener("click",async()=>{
+    try {
+      await navigator.clipboard.writeText($("teamJSON").value);
+      notify("Team JSON copied.");
+    } catch {
+      $("teamJSON").focus();
+      $("teamJSON").select();
+      $("configError").textContent="Automatic clipboard access is unavailable. The JSON is selected; use your browser's Copy command.";
+    }
+  });
+  document.querySelectorAll("[data-close]").forEach(button=>{
+    button.addEventListener("click",()=>$(button.dataset.close).close());
+  });
+
+  window.ASELDEV_HQ=Object.freeze({
+    version:"1.0.0",
+    limits:Object.freeze({maxAgents:SETTINGS.maxAgents}),
+    getState:()=>clone(state),
+    setState:snapshot=>commit(snapshot,"external"),
+    setTeam:agents=>commit({...state,agents},"external"),
+    updateAgent:(id,patch)=>{
+      if(!state.agents.some(a=>a.id===id))throw new Error(`Unknown agent "${id}".`);
+      if(!patch||typeof patch!=="object"||Array.isArray(patch))
+        throw new Error("Agent patch must be an object.");
+      if(patch.id!==undefined&&patch.id!==id)
+        throw new Error("An agent patch cannot change its ID.");
+      return commit({
+        ...state,
+        agents:state.agents.map(a=>a.id===id?{...a,...patch}:a)
+      },"external");
+    },
+    selectAgent:id=>{
+      if(id!=="boss"&&!state.agents.some(a=>a.id===id))
+        throw new Error(`Unknown agent "${id}".`);
+      select(id);
+    },
+    fit:()=>{
+      zoom=1;pan={x:0,y:0};applyCamera();
+    }
+  });
+
+  document.body.classList.toggle("motion-off",!motion);
+  $("motion").setAttribute("aria-pressed",String(motion));
+  commit(sample(6),"demo");
+
+  requestAnimationFrame(()=>{
+    if(innerWidth<=640)
+      $("viewport").scrollLeft=($("viewport").scrollWidth-$("viewport").clientWidth)/2;
+  });
+})();
+</script>
+</body>
+</html>

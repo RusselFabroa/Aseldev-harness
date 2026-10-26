@@ -1,0 +1,411 @@
+/* Plugin market tab: a display-size hero row over a bounded catalog of
+   installable plugin cards. Colors come from the theme's semantic aliases
+   only; motion is limited to hover, disclosure, and install progress. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  color: var(--dsw-alias-label-primary);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.heroRule {
+  width: 28px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.heroTitle {
+  margin: 0;
+  font-size: clamp(26px, 2.4vw + 18px, 36px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.heroLead {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.search > svg {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+
+.search input {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  padding: 0 12px 0 36px;
+  outline: none;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.search input::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.search input:focus-visible {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent);
+}
+
+.count {
+  flex: none;
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status,
+.failure p {
+  margin: 0;
+}
+
+.status,
+.failure {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.failure {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.retryButton {
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.retryButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.retryButton:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+/* The catalog is bounded: a long registry answer scrolls here, never the page. */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(56vh, 520px);
+  margin: 0;
+  padding: 2px 4px 2px 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.card:hover {
+  border-color: var(--dsw-alias-border-l4);
+}
+
+.cardOpen {
+  border-color: var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: var(--dsw-shadow-lv1);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.disclosure {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.disclosure:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--ds-font-family-code);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version {
+  flex: none;
+  border-radius: 5px;
+  padding: 1px 6px;
+  background: var(--dsw-alias-bg-module-platform);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.cardOpen .chevron {
+  transform: rotate(180deg);
+}
+
+.install {
+  flex: none;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  padding: 5px 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.install:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.install:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+.install:disabled {
+  cursor: default;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.install[data-status='installed'] {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 45%, transparent);
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.install[data-status='failed'],
+.installRetry {
+  border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.description {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.description[data-clamped='true'] {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.installFailure,
+.installSuccess,
+.restart {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.installFailure {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.installSuccess {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.restart {
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--dsw-alias-border-l2);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
+/* The panel element stays in the document while collapsed so the disclosure
+   trigger's aria-controls always resolves; this rule outranks the UA `hidden`
+   default that the class display above would otherwise override. */
+.details[hidden] {
+  display: none;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.facts div {
+  display: contents;
+}
+
+.facts dt {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.path {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card,
+  .install {
+    transition:
+      border-color 160ms var(--ds-ease-in-out),
+      background-color 160ms var(--ds-ease-in-out),
+      box-shadow 160ms var(--ds-ease-in-out);
+  }
+
+  .chevron {
+    transition: transform 140ms var(--ds-ease-in-out);
+  }
+
+  /* Install progress is the one looping motion on this tab, and only while a
+     package is actually being installed. */
+  .install[data-status='pending']::before {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border: 1.5px solid var(--dsw-alias-label-dimmed);
+    border-top-color: var(--dsw-alias-state-business-primary);
+    border-radius: 999px;
+    margin-right: 6px;
+    animation: market-spin 900ms linear infinite;
+    content: '';
+    vertical-align: -1px;
+  }
+}
+
+@keyframes market-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .facts div {
+    display: flex;
+    flex-direction: column;
+  }
+}

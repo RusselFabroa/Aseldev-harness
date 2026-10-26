@@ -57,6 +57,8 @@ export class TeamEngine {
     this.operations = new Map()
     this.pumping = new Set()
     this.earlyEnds = new Map()
+    /** Per-coordinator command chains: concurrent callers must not interleave status transitions. */
+    this.actions = new Map()
     this.data = { version: 1, specialists: DEFAULT_SPECIALISTS.map(s => ({ ...s })), teams: {} }
     try { this.data = JSON.parse(readFileSync(file, 'utf8')) }
     catch (error) { if (error.code !== 'ENOENT') throw error }
@@ -134,6 +136,12 @@ export class TeamEngine {
     })
   }
 
+  /** Replace the saved roster with the host's merged list (seeded defaults plus custom roles). */
+  setRoster(list) {
+    this.data.specialists = list.map(specialist)
+    this.save()
+  }
+
   team(sessionId) {
     text(sessionId, 'coordinator session id', 200)
     return Object.hasOwn(this.data.teams, sessionId)
@@ -143,6 +151,20 @@ export class TeamEngine {
 
   /** Validate and commit one explicit command, then consider eligible queued tasks. */
   async action(sessionId, action, args = {}) {
+    if (this.closed) throw new Error('Team plugin is stopping')
+    // One command at a time per coordinator: two panel tabs, or a tool call
+    // racing a panel action, must not interleave a status transition.
+    const previous = this.actions.get(sessionId) ?? Promise.resolve()
+    const run = previous.then(() => this.perform(sessionId, action, args))
+    const settled = run.then(() => undefined, () => undefined)
+    this.actions.set(sessionId, settled)
+    try { return await run } finally {
+      if (this.actions.get(sessionId) === settled) this.actions.delete(sessionId)
+    }
+  }
+
+  /** Execute one command; only the per-coordinator chain in {@link action} calls this. */
+  async perform(sessionId, action, args) {
     if (this.closed) throw new Error('Team plugin is stopping')
     if (action === 'status') return this.state(sessionId)
     if (action === 'save_specialist') {

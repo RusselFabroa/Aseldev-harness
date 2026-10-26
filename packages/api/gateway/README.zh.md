@@ -18,6 +18,8 @@ Connection 可用时，Host 入口会在 Connection 共享的 `/api` FetchHandle
 
 `ctx.remote.$mount()` 会校验并注册生成的 Host-for-Client 贡献项，然后为发起调用的 Cordis fiber 安装具体的直接方法和作用域方法。每个 namespace 都是可追踪的 `remote.<namespace>` 子 Service，并在最后一个方法撤回后卸载。重复端点、命名空间冲突，以及缺少生成的严格编解码器的描述符，都会在方法可调用前报错。
 
+命名空间方法通过 Symbol 键注册，因此名为 `install` 的业务端点不会与注册辅助方法冲突。Service 字段和其他命名空间方法仍禁止覆盖。
+
 每次调用都会校验位置参数，构造与描述符完全匹配的具名 `args`，再通过 `ctx.connection.rpc.call('/api', endpoint, ...)` 发送。生成的支持取消的方法接受最后一个可选 `AbortSignal`；Client 会在调用 Connection 前将它与贡献项的挂载生命周期合并。返回值经过校验后才会交给应用代码。撤回贡献项会同时移除其描述符和方法、中止正在进行的调用，并使外部仍持有的方法句柄在调用时返回拒绝。
 
 `ctx.remote.$on()` 订阅一条被转发的 Host 事件。它的合法键恰好等于 Host 装配声明的转发选择，listener 类型就是事件所属包自己的 Cordis `Events` 声明，因此不存在会与之漂移的第二份签名。每个订阅归属发起调用的 fiber，并随该 fiber 一起消失。投递是单向的，并按注册顺序进行；抛错的 listener 会被记录并与其余 listener 隔离，绝不影响帧泵。`ctx.remote.$dispatch()` 是该面的另一半，且属于载体：持有 Host 帧 sink 的 Client 半把每个解码后的帧交进来，收到无人订阅的事件名即丢弃，因为 wire 上出现什么取决于 Host 的转发选择。消费方只订阅，绝不调用它。

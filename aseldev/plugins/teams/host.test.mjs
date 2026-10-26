@@ -135,6 +135,10 @@ async function harness(options = {}) {
     claim(agentId, messages) {
       return listeners['agent/pre-step']({ agent: { id: agentId } }, async () => ({ kind: 'enter', messages }))
     },
+    /** Simulate the registry creating an agent (`agent/created`). */
+    created(payload) {
+      return listeners['agent/created']?.(payload)
+    },
     decide(agentId, decision) {
       return listeners['agent/pre-step']({ agent: { id: agentId } }, async () => decision)
     },
@@ -197,6 +201,11 @@ test('only the scheduler may wake a working teammate', async (t) => {
   )
   assert.equal((await h.claim(task.workerId, [{ id: 'ctx', source: { kind: 'plugin', plugin: 'x' } }])).kind, 'enter', 'injected context passes')
   assert.equal((await h.claim(task.workerId, [])).kind, 'enter', 'a tool-owed continuation passes')
+  assert.equal(
+    (await h.claim(task.workerId, [{ id: 'catalog', source: { kind: 'skill-catalog', form: 'catalog', entries: [] } }])).kind,
+    'enter',
+    'the skill catalog rides the step as context, never as a wake',
+  )
 })
 
 test('a settled teammate refuses every wake, whatever its source', async (t) => {
@@ -240,6 +249,16 @@ test('the guard refuses delegation for a worker and leaves the coordinator free'
   }
   assert.equal(guard({ name: 'subagent', agent: { id: 'coordinator' } }), undefined, 'the coordinator may delegate')
   assert.equal(guard({ name: 'write', agent: { id: task.workerId } }), undefined, 'a writer keeps mutation tools')
+})
+
+test('workerDelegation lifts delegation for a writer while team control stays coordinator-only', async (t) => {
+  const h = await harness({ config: { workerDelegation: true } })
+  t.after(() => h.dispose())
+  const task = await started(h)
+  const guard = h.guards[0]
+  assert.equal(guard({ name: 'subagent', agent: { id: task.workerId } }), undefined, 'a delegated writer may delegate')
+  assert.equal(guard({ name: 'send_message', agent: { id: task.workerId } }), undefined, 'a delegated writer may message')
+  assert.match(guard({ name: 'team_manage', agent: { id: task.workerId } }), /Refused/, 'team control stays coordinator-only')
 })
 
 test('a read worker is confined to its computed allow-list', async (t) => {
@@ -423,11 +442,47 @@ test('the coordination instruction is registered for every assembly', async (t) 
   const h = await harness()
   t.after(() => h.dispose())
   assert.equal(h.coordination?.name, 'teams:coordination')
-  assert.equal(typeof h.coordination?.text, 'string')
-  assert.equal(
-    h.coordination.text,
-    'For multi-agent work in ordinary coordinator conversations, use team_manage and saved specialists rather than ad hoc delegation; start with status; declare file scopes; report actual checks. Team workers only execute own assignment.',
-  )
+  const text = typeof h.coordination?.text === 'function'
+    ? h.coordination.text({ agent: { id: 'coordinator' } })
+    : h.coordination?.text
+  assert.match(text, /Project Manager/)
+  assert.match(text, /Auto-continue budget/)
+  assert.match(text, /Ponytail level/)
+  const workerText = typeof h.coordination?.text === 'function'
+    ? h.coordination.text({ agent: { id: 'not-a-worker' } })
+    : ''
+  assert.match(workerText, /Project Manager/)
+})
+
+test('a delegated child never inherits the PM contract', async (t) => {
+  const h = await harness()
+  t.after(() => h.dispose())
+  // An ad-hoc subagent child keeps the full toolset, so only the parentSession
+  // marks it as delegated; it must get the worker statement, not "plan and
+  // delegate", or it refuses its own assignment and the chain dead-ends.
+  h.live.set('teams-child', {
+    id: 'teams-child',
+    session: { header: { parentSession: 'coordinator' } },
+    ctx: {},
+  })
+  const text = typeof h.coordination?.text === 'function'
+    ? h.coordination.text({ agent: { id: 'teams-child' } })
+    : ''
+  assert.match(text, /team worker/i)
+  assert.doesNotMatch(text, /Project Manager/)
+})
+
+test('a child registered before its first turn never inherits the PM contract', async (t) => {
+  const h = await harness()
+  t.after(() => h.dispose())
+  // A freshly spawned child is not yet readable through the agent registry when
+  // its first prompt assembles; the `agent/created` record is what must decide.
+  h.created({ agent: { id: 'teams-worker-y', session: { header: { parentSession: 'coordinator' } } } })
+  const text = typeof h.coordination?.text === 'function'
+    ? h.coordination.text({ agent: { id: 'teams-worker-y' } })
+    : ''
+  assert.match(text, /team worker/i)
+  assert.doesNotMatch(text, /Project Manager/)
 })
 test('caller instructions never enter the persona template', async (t) => {
   const h = await harness()

@@ -92,19 +92,13 @@ const COPY = {
     title: 'Team',
     noSession: 'No session selected',
     follow: 'Open a session on the left',
+    idle: 'Team idle',
+    loading: 'Reading team state',
+    settled: 'settled',
+    resume: 'Resume',
     retry: 'Retry',
-    cancel: 'Cancel',
-    message: 'Message',
-    messageClose: 'Hide message box',
-    messageSend: 'Send',
-    configureSave: 'Save',
-    openConversation: 'Open conversation',
     transport: /Cannot reach the teams endpoint/,
     malformed: /Malformed team state/,
-    emptyTeam: 'No assignments yet',
-    guardHint: /team guard/,
-    statusRunning: 'Running',
-    statusDone: 'Done',
   },
   zh: {
     locale: 'zh-CN',
@@ -112,18 +106,13 @@ const COPY = {
     title: '团队',
     noSession: '未选择会话',
     follow: '先在左侧打开一个会话',
+    idle: '团队空闲',
+    loading: '正在读取团队状态',
+    settled: '已结算',
+    resume: '恢复调度',
     retry: '重试',
-    cancel: '取消',
-    message: '发消息',
-    messageClose: '收起消息',
-    messageSend: '发送',
-    openConversation: '打开会话',
     transport: /无法连接团队接口/,
     malformed: /团队状态格式不正确/,
-    emptyTeam: '该会话还没有任务',
-    guardHint: /团队守卫拒绝/,
-    statusRunning: '进行中',
-    statusDone: '已完成',
   },
 }
 
@@ -340,8 +329,9 @@ async function assertClean(page, recorded, { allowMutations = false, allowConsol
 
 /** Specialists the fixture stage advertises (both modes, so the write rule is visible). */
 const FIXTURE_SPECIALISTS = [
-  { id: 'builder', name: 'Builder', instructions: 'implement', mode: 'write' },
-  { id: 'reviewer', name: 'Reviewer', instructions: 'review', mode: 'read' },
+  { id: 'backend', name: 'Senior Backend Developer', instructions: 'implement', mode: 'write' },
+  { id: 'frontend', name: 'Senior Frontend Developer', instructions: 'implement', mode: 'write' },
+  { id: 'qa', name: 'Senior QA', instructions: 'verify', mode: 'read' },
 ]
 
 /** The second coordinator the fixture stage switches to. */
@@ -363,18 +353,19 @@ function fixtureState(requestedId) {
     team: {
       sessionId: requestedId,
       maxActive: 2,
-      paused: false,
+      // Paused, so the footer offers Resume for the action-containment check.
+      paused: true,
       tasks: [
         {
-          id: 'task-a', specialistId: 'builder', title: 'Fix login timing', prompt: 'p', status: 'working',
-          workerId: 'fixture-worker-running', files: ['src/auth'], dependsOn: [],
+          id: 'task-a', specialistId: 'backend', title: 'p', prompt: 'p', status: 'working',
+          workerId: 'fixture-worker-backend', files: ['src/auth'], dependsOn: [],
         },
         {
-          id: 'task-b', specialistId: 'reviewer', title: 'Review the change', prompt: 'p', status: 'done',
-          workerId: 'fixture-worker-done', files: [], dependsOn: ['task-a'], result: 'looks fine',
+          id: 'task-b', specialistId: 'frontend', title: 'p', prompt: 'p', status: 'done',
+          workerId: 'fixture-worker-frontend', files: [], dependsOn: ['task-a'], result: 'looks fine',
         },
         {
-          id: 'task-c', specialistId: 'reviewer', title: 'Write the summary', prompt: 'p', status: 'queued',
+          id: 'task-c', specialistId: 'qa', title: 'p', prompt: 'p', status: 'queued',
           files: [], dependsOn: [],
         },
       ],
@@ -435,6 +426,22 @@ try {
         return `“${copy.button}”`
       })
 
+      await check(`[${copy.locale}] launcher geometry matches the sidebar entry`, async () => {
+        await assertPluginMounted(page)
+        const teamButton = page.getByRole('button', exactName(copy.button))
+        const brainButton = page.getByRole('button', { name: "Open Asel's Brain", exact: true })
+        const teamBox = await teamButton.boundingBox()
+        const brainBox = await brainButton.boundingBox()
+        assert(teamBox !== null && brainBox !== null, 'both launcher buttons must measure')
+        assert(Math.abs(teamBox.width - brainBox.width) <= 1,
+          `Team button width ${String(teamBox.width)} differs from the sidebar row ${String(brainBox.width)}`)
+        assert(Math.abs(teamBox.height - brainBox.height) <= 1,
+          `Team button height ${String(teamBox.height)} differs from the sidebar row ${String(brainBox.height)}`)
+        assert(Math.abs(teamBox.x - brainBox.x) <= 1,
+          `Team button starts at x=${String(teamBox.x)}, the sidebar row at x=${String(brainBox.x)}`)
+        return `${String(teamBox.width)}x${String(teamBox.height)}px aligned with the sidebar entry`
+      })
+
       await check(`[${copy.locale}] panel opens on the real API without a failure line`, async () => {
         const dialog = await openPanel(page, copy)
         const text = (await dialog.innerText()).replace(/\s+/g, ' ')
@@ -445,7 +452,8 @@ try {
           // both states are correct: nothing selected, or a selected session that
           // has no team yet. What must never appear is an error.
           const guidance = text.includes(copy.follow) || text.includes(copy.noSession)
-          assert(guidance || text.includes(copy.emptyTeam), `expected no-session guidance or an empty team, got: ${text.slice(0, 160)}`)
+          assert(guidance || text.includes(copy.idle) || text.includes(copy.loading),
+            `expected no-session guidance or an idle team, got: ${text.slice(0, 160)}`)
           return `${guidance ? 'no session selected' : 'auto-selected session, empty team'} — ${text.slice(0, 60)}`
         }
         assert(text.includes(copy.title), 'panel title missing')
@@ -487,28 +495,20 @@ try {
         const text = (await dialog.innerText()).replace(/\s+/g, ' ')
         assert(!copy.transport.test(text), `empty-state panel reports a transport failure: ${text.slice(0, 160)}`)
         assert(!copy.malformed.test(text), `empty-state panel reports a malformed answer: ${text.slice(0, 160)}`)
-        // Two coherent states exist here: nothing selected (the panel instructs the
-        // user to open a conversation) or a session the runtime auto-selected but
-        // which has no team yet (the panel offers to assign the first worker).
-        if (text.includes(copy.noSession)) {
+        // Two coherent states exist here: nothing selected (the panel instructs
+        // the user to open a conversation) or a session the runtime auto-selected
+        // but which has no team yet (all role nodes idle).
+        if (text.includes(copy.follow) || text.includes(copy.noSession)) {
           assert(text.includes(copy.follow), `no-session panel is missing its instruction: ${text.slice(0, 200)}`)
           return 'no-session guidance shown'
         }
-        assert(text.includes(copy.emptyTeam), `expected no-session guidance or an empty team, got: ${text.slice(0, 200)}`)
-        return 'a session is auto-selected; empty team shown instead'
+        assert(text.includes(copy.idle) || text.includes(copy.loading),
+          `expected no-session guidance or an idle team, got: ${text.slice(0, 200)}`)
+        return 'a session is auto-selected; idle team shown instead'
       })
-      await check('Escape closes the panel while focus is inside it', async () => {
-        // The panel focuses itself when it opens; Escape reaches its keydown
-        // handler only from inside, so report where focus actually went instead
-        // of failing with a bare timeout.
-        const focus = await page.evaluate(() => {
-          const dialog = document.querySelector('[role="dialog"]')
-          const active = document.activeElement
-          if (dialog === null) return 'no dialog'
-          if (dialog.contains(active)) return 'inside'
-          return `outside (${active?.tagName ?? 'none'} ${active?.getAttribute?.('aria-label') ?? ''})`.trim()
-        })
-        assert(focus === 'inside', `the panel did not take focus on open: ${focus}`)
+      await check('Escape closes the panel', async () => {
+        // The shell's composer may hold focus after the panel mounts, so Escape
+        // must close the panel regardless of where focus landed.
         await page.keyboard.press('Escape')
         await page.getByRole('dialog').waitFor({ state: 'detached', timeout: 5_000 })
         return 'closed'
@@ -579,124 +579,45 @@ try {
 
         await check('[fixture] shell boots', () => assertShellBoots(page, recorded, copy))
 
-        /** Titles the fixture team's three tasks render with. */
-        const RUNNING = 'Fix login timing'
-        const SETTLED = 'Review the change'
-        const QUEUED = 'Write the summary'
-
-        await check('[fixture] rows render with per-status controls', async () => {
+        await check('[fixture] orbit renders one node per role with the live summary', async () => {
           const dialog = await openPanel(page, copy)
-          await rowOf(dialog, RUNNING).waitFor({ state: 'visible', timeout: 10_000 })
+          await dialog.locator('.dshteam-orbit-node').first().waitFor({ state: 'visible', timeout: 10_000 })
+          const nodes = dialog.locator('.dshteam-orbit-node')
+          assert(await nodes.count() === 3, `expected 3 role nodes, saw ${String(await nodes.count())}`)
           const text = (await dialog.innerText()).replace(/\s+/g, ' ')
-          assert(text.includes(copy.statusRunning), 'the running task has no running label')
-          assert(text.includes(copy.statusDone), 'the settled task has no done label')
-          // Scoped per row: an active row and a queued row both offer Cancel, so a
-          // panel-wide count is inherently ambiguous.
-          const running = rowOf(dialog, RUNNING)
-          const settled = rowOf(dialog, SETTLED)
-          const queued = rowOf(dialog, QUEUED)
-          assert(!(await running.getByRole('button', exactName(copy.cancel)).isDisabled()), 'the running task must be cancellable')
-          assert(!(await queued.getByRole('button', exactName(copy.cancel)).isDisabled()), 'the queued task must be cancellable')
-          assert(!(await settled.getByRole('button', exactName(copy.retry)).isDisabled()), 'the settled task must be retryable')
-          assert(await running.getByRole('button', exactName(copy.retry)).count() === 0, 'the running task must not offer retry')
-          assert(await settled.getByRole('button', exactName(copy.cancel)).count() === 0, 'the settled task must not offer cancel')
-          // Message toggle: refused while the row is busy or has no worker yet.
-          assert(await running.getByRole('button', exactName(copy.message)).isDisabled(), 'the busy row must not accept a message')
-          assert(!(await settled.getByRole('button', exactName(copy.message)).isDisabled()), 'the settled row must accept a message')
-          assert(await queued.getByRole('button', exactName(copy.message)).isDisabled(), 'a workerless row must not accept a message')
-          // Open conversation: rendered on every row but usable only once the row
-          // has a worker (production renders it disabled rather than hiding it).
-          assert(!(await running.getByRole('button', exactName(copy.openConversation)).isDisabled()), 'the running row must open its conversation')
-          assert(await queued.getByRole('button', exactName(copy.openConversation)).isDisabled(), 'a workerless row must not open a conversation')
-          return '3 rows, controls scoped per row'
+          assert(text.includes(copy.settled), `the live summary does not report settled work: ${text.slice(0, 160)}`)
+          const working = dialog.locator('.dshteam-orbit-node[data-state="working"]')
+          const done = dialog.locator('.dshteam-orbit-node[data-state="done"]')
+          const queued = dialog.locator('.dshteam-orbit-node[data-state="queued"]')
+          assert(await working.count() === 1, 'one working node expected')
+          assert(await done.count() === 1, 'one done node expected')
+          assert(await queued.count() === 1, 'one queued node expected')
+          return '3 nodes: 1 working, 1 done, 1 queued'
         })
 
-        await check('[fixture] message form opens with the guard copy', async () => {
+        await check('[fixture] clicking a role node posts no command and stays contained', async () => {
           const dialog = page.getByRole('dialog')
-          const settled = rowOf(dialog, SETTLED)
-          await settled.getByRole('button', exactName(copy.message)).click()
-          const box = settled.locator('textarea')
-          await box.waitFor({ state: 'visible', timeout: 5_000 })
-          const text = await settled.innerText()
-          assert(copy.guardHint.test(text), 'the message form does not explain the team guard')
-          assert(text.includes(copy.messageSend), 'the message form has no send control')
-          // Leave it closed again so later rows keep their default shape.
-          await settled.getByRole('button', exactName(copy.messageClose)).click()
-          return 'guard copy shown'
-        })
-
-        await check('[fixture] retry posts exactly one action and settles the busy state', async () => {
-          const dialog = page.getByRole('dialog')
-          const settled = rowOf(dialog, SETTLED)
-          await settled.getByRole('button', exactName(copy.retry)).click()
-          const retry = await waitForAction(actions, 'retry')
-          assert(retry !== undefined, `no retry action was posted (saw ${JSON.stringify(actions.map(a => a.action))})`)
-          assert(retry.taskId === 'task-b', `retry targeted ${String(retry.taskId)}, expected task-b`)
-          // The panel is busy until the action resolves; every control is disabled
-          // meanwhile, so the next click must wait for that to settle.
-          await until(async () => settled.getByRole('button', exactName(copy.retry)).isEnabled(), 'the retry control to re-enable')
-          assert(actions.filter(action => action.action === 'retry').length === 1, 'retry was posted more than once')
-          return `taskId ${retry.taskId}`
-        })
-
-        await check('[fixture] cancel posts exactly one action from the running row', async () => {
-          const dialog = page.getByRole('dialog')
-          const running = rowOf(dialog, RUNNING)
-          assert(!(await running.getByRole('button', exactName(copy.cancel)).isDisabled()), 'the busy-state wait did not release the panel')
-          await running.getByRole('button', exactName(copy.cancel)).click()
-          const cancel = await waitForAction(actions, 'cancel')
-          assert(cancel !== undefined, `no cancel action was posted (saw ${JSON.stringify(actions.map(a => a.action))})`)
-          assert(cancel.taskId === 'task-a', `cancel targeted ${String(cancel.taskId)}, expected task-a`)
-          await until(async () => running.getByRole('button', exactName(copy.cancel)).isEnabled(), 'the cancel control to re-enable')
-          return `taskId ${cancel.taskId}`
-        })
-
-        await check('[fixture] open-conversation stays contained (fake worker id)', async () => {
-          const dialog = page.getByRole('dialog')
-          const running = rowOf(dialog, RUNNING)
-          const openers = running.getByRole('button', exactName(copy.openConversation))
-          assert(await openers.count() === 1, `expected one open control in the running row, saw ${String(await openers.count())}`)
-          await openers.click()
-          // A fabricated worker id cannot be opened by the real runtime: the click
-          // must surface an error line, never an uncaught exception. Give the
-          // catalog refresh + refusal a moment to land.
-          await sleep(1_200)
-          const text = await dialog.innerText()
-          assert(recorded.pageErrors.length === 0, `the open click threw: ${recorded.pageErrors.join(' | ')}`)
-          return /not a healthy catalog child|unknown session|无法|Cannot/.test(text)
-            ? 'navigation refused and reported'
-            : 'no error line (worker id was resolvable?)'
-        })
-
-        await check('[fixture] switching coordinator drops the previous team and posts nothing', async () => {
-          const dialog = page.getByRole('dialog')
-          // Any command still in flight belongs to the previous coordinator.
-          await until(async () => !(await rowOf(dialog, SETTLED).getByRole('button', exactName(copy.retry)).isDisabled()), 'the panel to be idle')
           const before = actions.length
-          const picker = dialog.locator('select').first()
-          await picker.selectOption(SECOND_COORDINATOR)
-          // The second coordinator's mocked answer is an empty team, so its tasks
-          // must never appear; the previous team's rows and actions must vanish.
-          await page.waitForFunction((title) => !(document.querySelector('[role="dialog"]')?.innerText ?? '').includes(title), RUNNING, { timeout: 10_000 })
+          await dialog.locator('.dshteam-orbit-node[data-state="working"]').first().click()
+          await sleep(1_200)
+          assert(recorded.pageErrors.length === 0, `the node click threw: ${recorded.pageErrors.join(' | ')}`)
+          assert(actions.length === before, `a role-node click posted ${String(actions.length - before)} action(s)`)
           const text = await dialog.innerText()
-          assert(!text.includes(RUNNING), "the previous coordinator's task is still rendered")
-          assert(!text.includes(SETTLED), "the previous coordinator's review task is still rendered")
-          assert(!text.includes(QUEUED), "the previous coordinator's queued task is still rendered")
-          // Stale controls are what a leaked team would expose; the rows are gone,
-          // so no cancel/retry may remain anywhere in the panel.
-          assert(await dialog.getByRole('button', exactName(copy.cancel)).count() === 0, 'a stale cancel control survived the switch')
-          assert(await dialog.getByRole('button', exactName(copy.retry)).count() === 0, 'a stale retry control survived the switch')
-          // Switching is navigation, not a command: no POST may have been added.
-          assert(actions.length === before, `the switch posted ${String(actions.length - before)} action(s)`)
-          // The new coordinator has no team yet, which is exactly the state that
-          // must not advertise a guessed default: the deployment limit is host
-          // configuration, so the field says "Host default" and Save is disabled.
-          assert(await dialog.getByPlaceholder('Host default').count() === 1, 'a team-less panel must show the "Host default" placeholder')
-          assert(await dialog.getByPlaceholder('1').count() === 0, 'the panel must not claim a default limit of 1')
-          assert(await dialog.getByRole('button', exactName(copy.configureSave)).isDisabled(), 'Save must stay disabled until a limit is typed')
-          return /Switching coordinator|No assignments yet/.test(text) ? 'switching state shown' : 'empty team rendered'
+          return /refused|unknown|Cannot|not a healthy|无法/.test(text)
+            ? 'navigation refused and reported'
+            : 'no error line (the fabricated worker id was resolvable?)'
         })
 
+        await check('[fixture] resume posts exactly one action', async () => {
+          const dialog = page.getByRole('dialog')
+          const resume = dialog.getByRole('button', { name: copy.resume, exact: true })
+          await resume.waitFor({ state: 'visible', timeout: 10_000 })
+          await resume.click()
+          const resumed = await waitForAction(actions, 'resume')
+          assert(resumed !== undefined, `no resume action was posted (saw ${JSON.stringify(actions.map(action => action.action))})`)
+          await until(async () => actions.filter(action => action.action === 'resume').length === 1, 'exactly one resume action')
+          return 'resume posted once'
+        })
         await check('[fixture] fixture stage is clean', async () => {
           await assertClean(page, recorded, { allowMutations: true })
           return 'clean'
